@@ -1,0 +1,26 @@
+{
+    "name": "roo_collections",
+    "description": "Memory-conscious collections library. Right now, only contains a flat, small hashtable.",
+    "keywords": "hashtable hashmap hashset",
+    "authors": [
+        {
+            "name": "Dawid Kurzyniec",
+            "email": "dawid.kurzyniec@gmail.com",
+            "maintainer": true
+        }
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/dejwk/roo_collections"
+    },
+    "version": "1.0",
+    "homepage": "https://github.com/dejwk/roo_collections",
+    "frameworks": [
+        "Arduino",
+        "*"
+    ],
+    "build": {
+        "srcDir": ".",
+        "srcFilter": "+<*> -<examples> -<test>"
+    }
+}

@@ -320,9 +320,7 @@ class FlatSmallHashtable {
     }
   }
 
-  bool erase(const ConstIterator& itr) {
-    return erase(key_fn_(*itr));
-  }
+  bool erase(const ConstIterator& itr) { return erase(key_fn_(*itr)); }
 
   void clear() {
     if (used_ == 0 && erased_ == 0) return;
@@ -353,8 +351,7 @@ class FlatSmallHashtable {
     Key key = key_fn_(val);
     uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
     // Fast path.
-    if (states_[pos] == FULL &&
-        (buffer_[pos] == val || key_fn_(buffer_[pos]) == key)) {
+    if (states_[pos] == FULL && key_fn_(buffer_[pos]) == key) {
       return std::make_pair(Iterator(this, pos), false);
     }
     if (used_ >= resize_threshold_) {
@@ -373,8 +370,7 @@ class FlatSmallHashtable {
       *this = std::move(newt);
       // Retry the fast path.
       pos = fastmod(hash_fn_(key), capacity_idx_);
-      if (states_[pos] == FULL &&
-          (buffer_[pos] == val || key_fn_(buffer_[pos]) == key)) {
+      if (states_[pos] == FULL && key_fn_(buffer_[pos]) == key) {
         return std::make_pair(Iterator(this, pos), false);
       }
     }
@@ -398,8 +394,7 @@ class FlatSmallHashtable {
         ++used_;
         return std::make_pair(Iterator(this, p), true);
       }
-      if (states_[p] == FULL &&
-          (buffer_[p] == val || key_fn_(buffer_[p]) == key)) {
+      if (states_[p] == FULL && key_fn_(buffer_[p]) == key) {
         return std::make_pair(Iterator(this, p), false);
       }
       j += 2;

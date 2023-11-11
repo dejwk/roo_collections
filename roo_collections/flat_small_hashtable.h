@@ -68,12 +68,20 @@ class FlatSmallHashtable {
     ConstIterator() : ConstIterator(nullptr, 0) {}
 
     const Entry& operator*() const { return ht_->buffer_[pos_]; }
+    const Entry* operator->() const { return &ht_->buffer_[pos_]; }
 
-    void operator++() {
+    ConstIterator& operator++() {
       uint16_t ht_len = ht_->ht_len();
       do {
         ++pos_;
       } while (pos_ < ht_len && ht_->states_[pos_] != FULL);
+      return *this;
+    }
+
+    ConstIterator operator++(int n) {
+      ConstIterator itr = *this;
+      operator++();
+      return itr;
     }
 
     bool operator==(const ConstIterator& other) const {
@@ -106,14 +114,22 @@ class FlatSmallHashtable {
     Iterator() : Iterator(nullptr, 0) {}
 
     Entry& operator*() { return ht_->buffer_[pos_]; }
+    Entry* operator->() { return &ht_->buffer_[pos_]; }
 
     operator ConstIterator() const { return ConstIterator(ht_, pos_); }
 
-    void operator++() {
+    Iterator& operator++() {
       uint16_t ht_len = ht_->ht_len();
       do {
         ++pos_;
       } while (pos_ < ht_len && ht_->states_[pos_] != FULL);
+      return *this;
+    }
+
+    Iterator operator++(int n) {
+      Iterator itr = *this;
+      operator++();
+      return itr;
     }
 
     bool operator==(const Iterator& other) const {
@@ -169,7 +185,7 @@ class FlatSmallHashtable {
 
   FlatSmallHashtable(FlatSmallHashtable&& other) = default;
 
-  FlatSmallHashtable(FlatSmallHashtable& other)
+  FlatSmallHashtable(const FlatSmallHashtable& other)
       : hash_fn_(other.hash_fn_),
         key_fn_(other.key_fn_),
         capacity_idx_(other.capacity_idx_),
@@ -186,7 +202,7 @@ class FlatSmallHashtable {
 
   FlatSmallHashtable& operator=(FlatSmallHashtable&& other) = default;
 
-  FlatSmallHashtable& operator=(FlatSmallHashtable& other) {
+  FlatSmallHashtable& operator=(const FlatSmallHashtable& other) {
     if (this != &other) {
       hash_fn_ = other.hash_fn_;
       key_fn_ = other.key_fn_;
@@ -302,6 +318,10 @@ class FlatSmallHashtable {
       assert(j < cap);
       p += (j >= 0 ? j : -j);
     }
+  }
+
+  bool erase(const ConstIterator& itr) {
+    return erase(key_fn_(*itr));
   }
 
   void clear() {

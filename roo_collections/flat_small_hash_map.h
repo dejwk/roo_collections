@@ -36,6 +36,10 @@ class FlatSmallHashMap
       : FlatSmallHashtable<value_type, Key, HashFn, MapKeyFn<Key, Value>>(
             init, hash_fn) {}
 
+  FlatSmallHashMap(const FlatSmallHashMap& other)
+      : FlatSmallHashtable<value_type, Key, HashFn, MapKeyFn<Key, Value>>(
+            other) {}
+
   const Value& at(const Key& key) const {
     auto it = this->find(key);
     assert(it != this->end());

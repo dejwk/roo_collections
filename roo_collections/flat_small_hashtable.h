@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <inttypes.h>
 
+#include <functional>
 #include <memory>
 
 namespace roo_collections {
@@ -40,27 +41,59 @@ inline int initialCapacityIdx(uint16_t size_hint) {
   return 12;
 }
 
-struct DefaultHashFn {
-  template <typename T>
-  uint32_t operator()(const T& val) const {
-    return val;
-  }
-};
+template <typename Key>
+struct DefaultHashFn : public std::hash<Key> {};
 
 // For maps, where Key == Entry.
+template <typename Entry>
 struct DefaultKeyFn {
-  template <typename Entry>
-  Entry operator()(const Entry& entry) const {
-    return entry;
-  }
+  const Entry& operator()(const Entry& entry) const { return entry; }
 };
 
 // Memory-conscious small flat hashtable. It can hold up to 64000 elements.
-template <typename Entry, typename Key, typename HashFn = DefaultHashFn,
-          typename KeyFn = DefaultKeyFn>
+template <typename Entry, typename Key, typename HashFn = DefaultHashFn<Key>,
+          typename KeyFn = DefaultKeyFn<Entry>>
 class FlatSmallHashtable {
  public:
   enum State { EMPTY, DELETED, FULL };
+
+  class ConstIterator {
+   public:
+    using iterator_category = std::forward_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = const Entry;
+    using pointer = const Entry*;
+    using reference = const Entry&;
+
+    ConstIterator() : ConstIterator(nullptr, 0) {}
+
+    const Entry& operator*() const { return ht_->buffer_[pos_]; }
+
+    void operator++() {
+      uint16_t capacity = ht_->capacity();
+      do {
+        ++pos_;
+      } while (pos_ < capacity && ht_->states_[pos_] != FULL);
+    }
+
+    bool operator==(const ConstIterator& other) const {
+      return ht_ == other.ht_ && pos_ == other.pos_;
+    }
+
+    bool operator!=(const ConstIterator& other) const {
+      return ht_ != other.ht_ || pos_ != other.pos_;
+    }
+
+   private:
+    friend class FlatSmallHashtable;
+
+    ConstIterator(const FlatSmallHashtable<Entry, Key, HashFn, KeyFn>* ht,
+                  uint16_t pos)
+        : ht_(ht), pos_(pos) {}
+
+    const FlatSmallHashtable<Entry, Key, HashFn, KeyFn>* ht_;
+    uint16_t pos_;
+  };
 
   class Iterator {
    public:
@@ -72,7 +105,9 @@ class FlatSmallHashtable {
 
     Iterator() : Iterator(nullptr, 0) {}
 
-    const Entry& operator*() const { return ht_->buffer_[pos_]; }
+    Entry& operator*() { return ht_->buffer_[pos_]; }
+
+    operator ConstIterator() const { return ConstIterator(ht_, pos_); }
 
     void operator++() {
       uint16_t capacity = ht_->capacity();
@@ -92,11 +127,10 @@ class FlatSmallHashtable {
    private:
     friend class FlatSmallHashtable;
 
-    Iterator(const FlatSmallHashtable<Entry, Key, HashFn, KeyFn>* ht,
-             uint16_t pos)
+    Iterator(FlatSmallHashtable<Entry, Key, HashFn, KeyFn>* ht, uint16_t pos)
         : ht_(ht), pos_(pos) {}
 
-    const FlatSmallHashtable<Entry, Key, HashFn, KeyFn>* ht_;
+    FlatSmallHashtable<Entry, Key, HashFn, KeyFn>* ht_;
     uint16_t pos_;
   };
 
@@ -108,7 +142,8 @@ class FlatSmallHashtable {
       : hash_fn_(hash_fn),
         key_fn_(key_fn),
         capacity_idx_(initialCapacityIdx(size_hint)),
-        size_(0),
+        used_(0),
+        erased_(0),
         resize_threshold_(
             capacity_idx_ == 12
                 ? 64000
@@ -124,7 +159,16 @@ class FlatSmallHashtable {
 
   uint16_t capacity() const { return kRadkePrimes[capacity_idx_]; }
 
-  Iterator begin() const {
+  ConstIterator begin() const {
+    uint16_t cap = capacity();
+    uint16_t pos = 0;
+    for (; pos < cap; ++pos) {
+      if (states_[pos] == FULL) break;
+    }
+    return ConstIterator(this, pos);
+  }
+
+  Iterator begin() {
     uint16_t cap = capacity();
     uint16_t pos = 0;
     for (; pos < cap; ++pos) {
@@ -133,11 +177,147 @@ class FlatSmallHashtable {
     return Iterator(this, pos);
   }
 
-  Iterator end() const { return Iterator(this, capacity()); }
+  Iterator end() { return Iterator(this, capacity()); }
+  ConstIterator end() const { return ConstIterator(this, capacity()); }
 
-  uint16_t size() const { return size_; }
+  uint16_t size() const { return used_ - erased_; }
 
-  Iterator find(const Key& key) const {
+  ConstIterator find(const Key& key) const {
+    const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    if (states_[pos] == EMPTY) return end();
+    if (states_[pos] == FULL && key_fn_(buffer_[pos]) == key) {
+      return ConstIterator(this, pos);
+    }
+    const uint16_t cap = capacity();
+    uint32_t p = pos;
+    p += (cap - 2);
+    int32_t j = 2 - cap;
+    while (true) {
+      if (p >= cap) p -= cap;
+      if (states_[p] == EMPTY) return end();
+      if (states_[p] == FULL && key_fn_(buffer_[p]) == key) {
+        return ConstIterator(this, p);
+      }
+      j += 2;
+      assert(j < cap);
+      p += (j >= 0 ? j : -j);
+    }
+  }
+
+  bool erase(const Key& key) {
+    const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    if (states_[pos] == EMPTY) return false;
+    if (states_[pos] == FULL && key_fn_(buffer_[pos]) == key) {
+      states_[pos] = DELETED;
+      buffer_[pos] = Entry();
+      ++erased_;
+      return true;
+    }
+    const uint16_t cap = capacity();
+    uint32_t p = pos;
+    p += (cap - 2);
+    int32_t j = 2 - cap;
+    while (true) {
+      if (p >= cap) p -= cap;
+      if (states_[p] == EMPTY) return false;
+      if (states_[p] == FULL && key_fn_(buffer_[p]) == key) {
+        states_[p] = DELETED;
+        buffer_[pos] = Entry();
+        ++erased_;
+        return true;
+      }
+      j += 2;
+      assert(j < cap);
+      p += (j >= 0 ? j : -j);
+    }
+  }
+
+  void clear() {
+    if (used_ == 0 && erased_ == 0) return;
+    std::fill(&states_[0], &states_[kRadkePrimes[capacity_idx_]], EMPTY);
+    std::fill(&buffer_[0], &buffer_[kRadkePrimes[capacity_idx_]], Entry());
+    used_ = 0;
+    erased_ = 0;
+  }
+
+  void compact() {
+    int capacity_idx = initialCapacityIdx(size());
+    if (capacity_idx == capacity_idx_ && erased_ == 0) return;
+    assert(capacity_idx < 12);  // Or, exceeded maximum hashtable size.
+    FlatSmallHashtable<Entry, Key, HashFn, KeyFn> newt(size(), hash_fn_,
+                                                       key_fn_);
+    for (const auto& e : *this) {
+      newt.insert(e);
+    }
+    *this = std::move(newt);
+  }
+
+  bool contains(const Key& key) const { return find(key).pos_ != capacity(); }
+
+  // Returns {the iterator to the new element, true} if the element was
+  // successfuly inserted; {the iterator to an existing element, false} if an
+  // entry with the same key has already been in the hashmap.
+  std::pair<ConstIterator, bool> insert(Entry val) {
+    Key key = key_fn_(val);
+    uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    // Fast path.
+    if (states_[pos] == FULL &&
+        (buffer_[pos] == val || key_fn_(buffer_[pos]) == key)) {
+      return std::make_pair(ConstIterator(this, pos), false);
+    }
+    if (used_ >= resize_threshold_) {
+      // Before rehashing see if maybe the entry is already in the hashtable.
+      ConstIterator itr = find(key);
+      if (itr != end()) {
+        return std::make_pair(itr, false);
+      }
+      // Need to rehash.
+      assert(capacity_idx_ < 12);  // Or, exceeded maximum hashtable size.
+      FlatSmallHashtable<Entry, Key, HashFn, KeyFn> newt(capacity(), hash_fn_,
+                                                         key_fn_);
+      for (const auto& e : *this) {
+        newt.insert(e);
+      }
+      *this = std::move(newt);
+      // Retry the fast path.
+      pos = fastmod(hash_fn_(key), capacity_idx_);
+      if (states_[pos] == FULL &&
+          (buffer_[pos] == val || key_fn_(buffer_[pos]) == key)) {
+        return std::make_pair(ConstIterator(this, pos), false);
+      }
+    }
+    // Fast path for not found.
+    if (states_[pos] == EMPTY) {
+      states_[pos] = FULL;
+      buffer_[pos] = std::move(val);
+      ++used_;
+      return std::make_pair(ConstIterator(this, pos), true);
+    }
+    const uint16_t cap = capacity();
+    uint32_t p = pos;
+    p += (cap - 2);
+    int32_t j = 2 - cap;
+    while (true) {
+      if (p >= cap) p -= cap;
+      if (states_[p] == EMPTY) {
+        // We can insert here.
+        states_[p] = FULL;
+        buffer_[p] = std::move(val);
+        ++used_;
+        return std::make_pair(ConstIterator(this, p), true);
+      }
+      if (states_[p] == FULL &&
+          (buffer_[p] == val || key_fn_(buffer_[p]) == key)) {
+        return std::make_pair(ConstIterator(this, p), false);
+      }
+      j += 2;
+      assert(j < cap);
+      p += (j >= 0 ? j : -j);
+    }
+  }
+
+ protected:
+  Iterator lookup(const Key& key) {
     const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
     if (states_[pos] == EMPTY) return end();
     if (states_[pos] == FULL && key_fn_(buffer_[pos]) == key) {
@@ -159,80 +339,42 @@ class FlatSmallHashtable {
     }
   }
 
-  bool contains(const Key& key) const { return find(key).pos_ != capacity(); }
-
-  // Returns {the iterator to the new element, true} if the element was
-  // successfuly inserted; {the iterator to an existing element, false} if an
-  // entry with the same key has already been in the hashmap.
-  std::pair<Iterator, bool> insert(Entry val) {
-    Key key = key_fn_(val);
-    uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
-    // Fast path.
-    if (states_[pos] == FULL &&
-        (buffer_[pos] == val || key_fn_(buffer_[pos]) == key)) {
-      return std::make_pair(Iterator(this, pos), false);
-    }
-    if (size_ >= resize_threshold_) {
-      // Before rehashing see if maybe the entry is already in the hashtable.
-      Iterator itr = find(val);
-      if (itr != end()) {
-        return std::make_pair(itr, false);
-      }
-      // Need to rehash.
-      assert(capacity_idx_ < 12);  // Or, exceeded maximum hashtable size.
-      FlatSmallHashtable<Entry, Key, HashFn, KeyFn> newt(capacity(), hash_fn_,
-                                                         key_fn_);
-      for (const auto& e : *this) {
-        newt.insert(e);
-      }
-      *this = std::move(newt);
-      // Retry the fast path.
-      pos = fastmod(hash_fn_(key), capacity_idx_);
-      if (states_[pos] == FULL &&
-          (buffer_[pos] == val || key_fn_(buffer_[pos]) == key)) {
-        return std::make_pair(Iterator(this, pos), false);
-      }
-    }
-    // Fast path for not found.
-    if (states_[pos] == EMPTY) {
-      states_[pos] = FULL;
-      buffer_[pos] = std::move(val);
-      ++size_;
-      return std::make_pair(Iterator(this, pos), true);
-    }
-    const uint16_t cap = capacity();
-    uint32_t p = pos;
-    p += (cap - 2);
-    int32_t j = 2 - cap;
-    while (true) {
-      if (p >= cap) p -= cap;
-      if (states_[p] == EMPTY) {
-        // We can insert here.
-        states_[p] = FULL;
-        buffer_[p] = std::move(val);
-        ++size_;
-        return std::make_pair(Iterator(this, p), true);
-      }
-      if (states_[p] == FULL &&
-          (buffer_[p] == val || key_fn_(buffer_[p]) == key)) {
-        return std::make_pair(Iterator(this, p), false);
-      }
-      j += 2;
-      assert(j < cap);
-      p += (j >= 0 ? j : -j);
-    }
-  }
-
  private:
+  friend class ConstIterator;
   friend class Iterator;
 
   HashFn hash_fn_;
   KeyFn key_fn_;
   int capacity_idx_;
-  uint16_t size_;
+  uint16_t used_;
+  uint16_t erased_;
   uint16_t resize_threshold_;
   std::unique_ptr<Entry[]> buffer_;
   std::unique_ptr<State[]> states_;
 };
 
 }  // namespace roo_collections
+
+#ifdef ARDUINO
+
+#include "WString.h"
+
+namespace roo_collections {
+
+// A simple specialization for the Arduino String.
+template <>
+struct DefaultHashFn<String> {
+  size_t operator()(const String& s) const noexcept {
+    size_t h = 0;
+    unsigned int size = s.length();
+    const char* data = s.c_str();
+    while (size-- > 0) {
+      h = ((h << 5) + h) ^ *data++;
+    }
+    return h;
+  }
+};
+
+}  // namespace roo_collections
+
+#endif

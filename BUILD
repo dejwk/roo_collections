@@ -5,6 +5,7 @@ cc_library(
     srcs = [
         "roo_collections/flat_small_hashtable.h",
         "roo_collections/flat_small_hash_set.h",
+        "roo_collections/flat_small_hash_map.h",
     ],
     includes = [
         ".",

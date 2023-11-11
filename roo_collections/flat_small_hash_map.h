@@ -22,6 +22,8 @@ class FlatSmallHashMap
       : FlatSmallHashtable<value_type, Key, HashFn, MapKeyFn<Key, Value>>(
             hash_fn) {}
 
+  // Creates a hash map into which you can insert size_hint elements without
+  // causing rehashing and memory reallocation.
   FlatSmallHashMap(uint16_t size_hint, HashFn hash_fn = HashFn())
       : FlatSmallHashtable<value_type, Key, HashFn, MapKeyFn<Key, Value>>(
             size_hint, hash_fn) {}

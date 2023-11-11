@@ -9,7 +9,7 @@
 namespace roo_collections {
 
 // Slightly higher than conventional 0.7, mostly so that the smallest hashtable
-// (with capacity 11) can still hold 8 elements.
+// (with ht_len 11) can still hold 8 elements.
 static constexpr float kMaxFillRatio = 0.73;
 
 // Sequence of the largest primes of the format 4n+3, less than 2^k,
@@ -34,9 +34,9 @@ inline uint16_t fastmod(uint32_t n, int idx) {
 }
 
 inline int initialCapacityIdx(uint16_t size_hint) {
-  uint32_t capacity = (uint32_t)(((float)size_hint) / kMaxFillRatio) + 1;
+  uint32_t ht_len = (uint32_t)(((float)size_hint) / kMaxFillRatio) + 1;
   for (int radkeIdx = 0; radkeIdx < 12; ++radkeIdx) {
-    if (kRadkePrimes[radkeIdx] >= capacity) return radkeIdx;
+    if (kRadkePrimes[radkeIdx] >= ht_len) return radkeIdx;
   }
   return 12;
 }
@@ -70,10 +70,10 @@ class FlatSmallHashtable {
     const Entry& operator*() const { return ht_->buffer_[pos_]; }
 
     void operator++() {
-      uint16_t capacity = ht_->capacity();
+      uint16_t ht_len = ht_->ht_len();
       do {
         ++pos_;
-      } while (pos_ < capacity && ht_->states_[pos_] != FULL);
+      } while (pos_ < ht_len && ht_->states_[pos_] != FULL);
     }
 
     bool operator==(const ConstIterator& other) const {
@@ -110,10 +110,10 @@ class FlatSmallHashtable {
     operator ConstIterator() const { return ConstIterator(ht_, pos_); }
 
     void operator++() {
-      uint16_t capacity = ht_->capacity();
+      uint16_t ht_len = ht_->ht_len();
       do {
         ++pos_;
-      } while (pos_ < capacity && ht_->states_[pos_] != FULL);
+      } while (pos_ < ht_len && ht_->states_[pos_] != FULL);
     }
 
     bool operator==(const Iterator& other) const {
@@ -133,6 +133,19 @@ class FlatSmallHashtable {
     FlatSmallHashtable<Entry, Key, HashFn, KeyFn>* ht_;
     uint16_t pos_;
   };
+
+  template <typename InputIt>
+  FlatSmallHashtable(InputIt first, InputIt last, HashFn hash_fn = HashFn(),
+                     KeyFn key_fn = KeyFn())
+      : FlatSmallHashtable(std::max((int)(last - first), 8), hash_fn, key_fn) {
+    for (auto it = first; it != last; ++it) {
+      insert(*it);
+    }
+  }
+
+  FlatSmallHashtable(std::initializer_list<Entry> init,
+                     HashFn hash_fn = HashFn(), KeyFn key_fn = KeyFn())
+      : FlatSmallHashtable(init.begin(), init.end(), hash_fn, key_fn) {}
 
   FlatSmallHashtable(HashFn hash_fn = HashFn(), KeyFn key_fn = KeyFn())
       : FlatSmallHashtable(8, hash_fn, key_fn) {}
@@ -155,12 +168,63 @@ class FlatSmallHashtable {
   }
 
   FlatSmallHashtable(FlatSmallHashtable&& other) = default;
+
+  FlatSmallHashtable(FlatSmallHashtable& other)
+      : hash_fn_(other.hash_fn_),
+        key_fn_(other.key_fn_),
+        capacity_idx_(other.capacity_idx_),
+        used_(other.used_),
+        erased_(other.erased_),
+        resize_threshold_(other.resize_threshold_),
+        buffer_(new Entry[kRadkePrimes[capacity_idx_]]),
+        states_(new State[kRadkePrimes[capacity_idx_]]) {
+    std::copy(&other.buffer_[0], &other.buffer_[kRadkePrimes[capacity_idx_]],
+              &buffer_[0]);
+    std::copy(&other.states_[0], &other.states_[kRadkePrimes[capacity_idx_]],
+              &states_[0]);
+  }
+
   FlatSmallHashtable& operator=(FlatSmallHashtable&& other) = default;
 
-  uint16_t capacity() const { return kRadkePrimes[capacity_idx_]; }
+  FlatSmallHashtable& operator=(FlatSmallHashtable& other) {
+    if (this != &other) {
+      hash_fn_ = other.hash_fn_;
+      key_fn_ = other.key_fn_;
+      capacity_idx_ = other.capacity_idx_;
+      used_ = other.used_;
+      erased_ = other.erased_;
+      resize_threshold_ = other.resize_threshold_;
+      std::cout.flush();
+      buffer_.reset(new Entry[kRadkePrimes[capacity_idx_]]);
+      states_.reset(new State[kRadkePrimes[capacity_idx_]]);
+      std::copy(&other.buffer_[0], &other.buffer_[kRadkePrimes[capacity_idx_]],
+                &buffer_[0]);
+      std::copy(&other.states_[0], &other.states_[kRadkePrimes[capacity_idx_]],
+                &states_[0]);
+      std::cout.flush();
+    }
+    return *this;
+  }
+
+  bool operator==(const FlatSmallHashtable& other) const {
+    if (other.size() != size()) return false;
+    // Note: maps with different capacities or different insert/erase history
+    // may have different iteration order, thus we need to use lookup on one of
+    // them.
+    for (const auto& e : *this) {
+      auto itr = other.find(key_fn_(e));
+      if (itr == other.end()) return false;
+      if (*itr != e) return false;
+    }
+    return true;
+  }
+
+  bool operator!=(const FlatSmallHashtable& other) { return !(*this == other); }
+
+  uint16_t ht_len() const { return kRadkePrimes[capacity_idx_]; }
 
   ConstIterator begin() const {
-    uint16_t cap = capacity();
+    uint16_t cap = ht_len();
     uint16_t pos = 0;
     for (; pos < cap; ++pos) {
       if (states_[pos] == FULL) break;
@@ -169,7 +233,7 @@ class FlatSmallHashtable {
   }
 
   Iterator begin() {
-    uint16_t cap = capacity();
+    uint16_t cap = ht_len();
     uint16_t pos = 0;
     for (; pos < cap; ++pos) {
       if (states_[pos] == FULL) break;
@@ -177,10 +241,18 @@ class FlatSmallHashtable {
     return Iterator(this, pos);
   }
 
-  Iterator end() { return Iterator(this, capacity()); }
-  ConstIterator end() const { return ConstIterator(this, capacity()); }
+  Iterator end() { return Iterator(this, ht_len()); }
+  ConstIterator end() const { return ConstIterator(this, ht_len()); }
 
+  // Returns the number of elements in the hashtable.
   uint16_t size() const { return used_ - erased_; }
+
+  // Returns true if the hashtable has no elements.
+  bool empty() const { return used_ == erased_; }
+
+  // Returns the number of elements that the hashtable can hold before it needs
+  // to be rehashed.
+  uint16_t capacity() const { return resize_threshold_; }
 
   ConstIterator find(const Key& key) const {
     const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
@@ -188,7 +260,7 @@ class FlatSmallHashtable {
     if (states_[pos] == FULL && key_fn_(buffer_[pos]) == key) {
       return ConstIterator(this, pos);
     }
-    const uint16_t cap = capacity();
+    const uint16_t cap = ht_len();
     uint32_t p = pos;
     p += (cap - 2);
     int32_t j = 2 - cap;
@@ -213,7 +285,7 @@ class FlatSmallHashtable {
       ++erased_;
       return true;
     }
-    const uint16_t cap = capacity();
+    const uint16_t cap = ht_len();
     uint32_t p = pos;
     p += (cap - 2);
     int32_t j = 2 - cap;
@@ -222,7 +294,7 @@ class FlatSmallHashtable {
       if (states_[p] == EMPTY) return false;
       if (states_[p] == FULL && key_fn_(buffer_[p]) == key) {
         states_[p] = DELETED;
-        buffer_[pos] = Entry();
+        buffer_[p] = Entry();
         ++erased_;
         return true;
       }
@@ -252,28 +324,28 @@ class FlatSmallHashtable {
     *this = std::move(newt);
   }
 
-  bool contains(const Key& key) const { return find(key).pos_ != capacity(); }
+  bool contains(const Key& key) const { return find(key).pos_ != ht_len(); }
 
   // Returns {the iterator to the new element, true} if the element was
   // successfuly inserted; {the iterator to an existing element, false} if an
   // entry with the same key has already been in the hashmap.
-  std::pair<ConstIterator, bool> insert(Entry val) {
+  std::pair<Iterator, bool> insert(Entry val) {
     Key key = key_fn_(val);
     uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
     // Fast path.
     if (states_[pos] == FULL &&
         (buffer_[pos] == val || key_fn_(buffer_[pos]) == key)) {
-      return std::make_pair(ConstIterator(this, pos), false);
+      return std::make_pair(Iterator(this, pos), false);
     }
     if (used_ >= resize_threshold_) {
       // Before rehashing see if maybe the entry is already in the hashtable.
-      ConstIterator itr = find(key);
+      Iterator itr = lookup(key);
       if (itr != end()) {
         return std::make_pair(itr, false);
       }
       // Need to rehash.
       assert(capacity_idx_ < 12);  // Or, exceeded maximum hashtable size.
-      FlatSmallHashtable<Entry, Key, HashFn, KeyFn> newt(capacity(), hash_fn_,
+      FlatSmallHashtable<Entry, Key, HashFn, KeyFn> newt(ht_len(), hash_fn_,
                                                          key_fn_);
       for (const auto& e : *this) {
         newt.insert(e);
@@ -283,7 +355,7 @@ class FlatSmallHashtable {
       pos = fastmod(hash_fn_(key), capacity_idx_);
       if (states_[pos] == FULL &&
           (buffer_[pos] == val || key_fn_(buffer_[pos]) == key)) {
-        return std::make_pair(ConstIterator(this, pos), false);
+        return std::make_pair(Iterator(this, pos), false);
       }
     }
     // Fast path for not found.
@@ -291,9 +363,9 @@ class FlatSmallHashtable {
       states_[pos] = FULL;
       buffer_[pos] = std::move(val);
       ++used_;
-      return std::make_pair(ConstIterator(this, pos), true);
+      return std::make_pair(Iterator(this, pos), true);
     }
-    const uint16_t cap = capacity();
+    const uint16_t cap = ht_len();
     uint32_t p = pos;
     p += (cap - 2);
     int32_t j = 2 - cap;
@@ -304,11 +376,11 @@ class FlatSmallHashtable {
         states_[p] = FULL;
         buffer_[p] = std::move(val);
         ++used_;
-        return std::make_pair(ConstIterator(this, p), true);
+        return std::make_pair(Iterator(this, p), true);
       }
       if (states_[p] == FULL &&
           (buffer_[p] == val || key_fn_(buffer_[p]) == key)) {
-        return std::make_pair(ConstIterator(this, p), false);
+        return std::make_pair(Iterator(this, p), false);
       }
       j += 2;
       assert(j < cap);
@@ -323,7 +395,7 @@ class FlatSmallHashtable {
     if (states_[pos] == FULL && key_fn_(buffer_[pos]) == key) {
       return Iterator(this, pos);
     }
-    const uint16_t cap = capacity();
+    const uint16_t cap = ht_len();
     uint32_t p = pos;
     p += (cap - 2);
     int32_t j = 2 - cap;

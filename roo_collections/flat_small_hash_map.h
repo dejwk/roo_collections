@@ -16,37 +16,48 @@ class FlatSmallHashMap
     : public FlatSmallHashtable<std::pair<Key, Value>, Key, HashFn,
                                 MapKeyFn<Key, Value>> {
  public:
-  class Ref {
-   public:
-    operator const Value&() const { return (*target_.find(key_)).second; }
+  using value_type = std::pair<Key, Value>;
 
-    const Value& operator=(Value val) {
-      auto itr = target_.lookup(key_);
-      if (itr == target_.end()) {
-        return (*target_.insert(std::make_pair(key_, std::move(val))).first)
-            .second;
-      } else {
-        (*itr).second = std::move(val);
-        return (*itr).second;
-      }
-    }
+  FlatSmallHashMap(HashFn hash_fn = HashFn())
+      : FlatSmallHashtable<value_type, Key, HashFn, MapKeyFn<Key, Value>>(
+            hash_fn) {}
 
-   private:
-    friend class FlatSmallHashMap<Key, Value, HashFn>;
+  FlatSmallHashMap(uint16_t size_hint, HashFn hash_fn = HashFn())
+      : FlatSmallHashtable<value_type, Key, HashFn, MapKeyFn<Key, Value>>(
+            size_hint, hash_fn) {}
 
-    Ref(FlatSmallHashMap<Key, Value, HashFn>& target, Key key)
-        : target_(target), key_(std::move(key)) {}
-    FlatSmallHashMap<Key, Value, HashFn>& target_;
-    Key key_;
-  };
+  template <typename InputIt>
+  FlatSmallHashMap(InputIt first, InputIt last, HashFn hash_fn = HashFn())
+      : FlatSmallHashtable<value_type, Key, HashFn, MapKeyFn<Key, Value>>(
+            first, last, hash_fn) {}
 
-  const Value& operator[](const Key& key) const {
-    auto it = find(key);
-    assert(it.second);
-    return it.first;
+  FlatSmallHashMap(std::initializer_list<value_type> init,
+                   HashFn hash_fn = HashFn())
+      : FlatSmallHashtable<value_type, Key, HashFn, MapKeyFn<Key, Value>>(
+            init, hash_fn) {}
+
+  const Value& at(const Key& key) const {
+    auto it = this->find(key);
+    assert(it != this->end());
+    return (*it).second;
   }
 
-  Ref operator[](const Key& key) { return Ref(*this, key); }
+  Value& at(const Key& key) {
+    auto it = this->lookup(key);
+    assert(it != this->end());
+    return (*it).second;
+  }
+
+  const Value& operator[](const Key& key) const { return at(key); }
+
+  Value& operator[](const Key& key) {
+    auto it = this->lookup(key);
+    if (it == this->end()) {
+      return (*this->insert({key, Value()}).first).second;
+    } else {
+      return (*it).second;
+    }
+  }
 };
 
 }  // namespace roo_collections

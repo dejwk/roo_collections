@@ -3,12 +3,12 @@
 cc_library(
     name = "roo_collections",
     srcs = [
-        "roo_collections/flat_small_hashtable.h",
-        "roo_collections/flat_small_hash_set.h",
-        "roo_collections/flat_small_hash_map.h",
+        "src/roo_collections/flat_small_hashtable.h",
+        "src/roo_collections/flat_small_hash_set.h",
+        "src/roo_collections/flat_small_hash_map.h",
     ],
     includes = [
-        ".",
+        "src",
     ],
     visibility = ["//visibility:public"],
 )

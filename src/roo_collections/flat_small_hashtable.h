@@ -4,6 +4,7 @@
 #include <inttypes.h>
 
 #include <functional>
+#include <initializer_list>
 #include <memory>
 
 namespace roo_collections {
@@ -210,14 +211,12 @@ class FlatSmallHashtable {
       used_ = other.used_;
       erased_ = other.erased_;
       resize_threshold_ = other.resize_threshold_;
-      std::cout.flush();
       buffer_.reset(new Entry[kRadkePrimes[capacity_idx_]]);
       states_.reset(new State[kRadkePrimes[capacity_idx_]]);
       std::copy(&other.buffer_[0], &other.buffer_[kRadkePrimes[capacity_idx_]],
                 &buffer_[0]);
       std::copy(&other.states_[0], &other.states_[kRadkePrimes[capacity_idx_]],
                 &states_[0]);
-      std::cout.flush();
     }
     return *this;
   }

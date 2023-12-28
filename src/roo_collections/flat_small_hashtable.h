@@ -9,24 +9,27 @@
 
 namespace roo_collections {
 
-// Slightly higher than conventional 0.7, mostly so that the smallest hashtable
-// (with ht_len 11) can still hold 8 elements.
+// Slightly higher than conventional 0.7, mostly so that the default-capacity
+// small hashtable (with ht_len 11) can hold 8 elements.
 static constexpr float kMaxFillRatio = 0.73;
 
 // Sequence of the largest primes of the format 4n+3, less than 2^k,
-// for k = 4 ... 16. When used as hash map capacities, they are known to
-// enable quadratic residue search to visit the entire array.
+// for k = 2 ... 16. When used as hash map capacities, they are known to
+// enable quadratic residue search to visit the entire array. Additionally,
+// we keep the value '1' at the beginning, as the sentinel that indicates
+// an empty hashtable, with no dynamically allocated buffer.
 static constexpr uint16_t kRadkePrimes[] = {
-    0xb,   0x1f,  0x3b,   0x7f,   0xfb,   0x1f7, 0x3fb,
-    0x7f7, 0xffb, 0x1fff, 0x3feb, 0x7fcf, 0xffef};
+    0x1,   0x3,   0x7,   0xb,   0x1f,   0x3b,   0x7f,   0xfb,
+    0x1f7, 0x3fb, 0x7f7, 0xffb, 0x1fff, 0x3feb, 0x7fcf, 0xffef};
 
 // These are precalculated (2^48 - 1) / the corresponding radke prime + 1.
 // See
 // https://lemire.me/blog/2019/02/08/faster-remainders-when-the-divisor-is-a-constant-beating-compilers-and-libdivide/
 static constexpr uint64_t kRadkePrimeInverts[] = {
-    0x1745d1745d18, 0x84210842109, 0x456c797dd4a, 0x20408102041, 0x105197f7d74,
-    0x824a4e60b4,   0x4050647d9e,  0x202428adc4,  0x100501907e,  0x800400201,
-    0x401506e65,    0x200c44b25,   0x100110122};
+    0x281474976700001, 0xD5C26DD2255556, 0x5B9C78357DB6DC, 0x1745d1745d18,
+    0x84210842109,     0x456c797dd4a,    0x20408102041,    0x105197f7d74,
+    0x824a4e60b4,      0x4050647d9e,     0x202428adc4,     0x100501907e,
+    0x800400201,       0x401506e65,      0x200c44b25,      0x100110122};
 
 // Returns n % kRadkePrimes[idx].
 inline uint16_t fastmod(uint32_t n, int idx) {
@@ -36,10 +39,10 @@ inline uint16_t fastmod(uint32_t n, int idx) {
 
 inline int initialCapacityIdx(uint16_t size_hint) {
   uint32_t ht_len = (uint32_t)(((float)size_hint) / kMaxFillRatio) + 1;
-  for (int radkeIdx = 0; radkeIdx < 12; ++radkeIdx) {
+  for (int radkeIdx = 0; radkeIdx < 15; ++radkeIdx) {
     if (kRadkePrimes[radkeIdx] >= ht_len) return radkeIdx;
   }
-  return 12;
+  return 15;
 }
 
 template <typename Key>
@@ -175,16 +178,29 @@ class FlatSmallHashtable {
         used_(0),
         erased_(0),
         resize_threshold_(
-            capacity_idx_ == 12
+            capacity_idx_ == 15
                 ? 64000
                 : (uint16_t)(((float)kRadkePrimes[capacity_idx_]) *
                              kMaxFillRatio)),
-        buffer_(new Entry[kRadkePrimes[capacity_idx_]]),
-        states_(new State[kRadkePrimes[capacity_idx_]]) {
+        buffer_(capacity_idx_ > 0 ? new Entry[kRadkePrimes[capacity_idx_]]
+                                  : nullptr),
+        states_(capacity_idx_ > 0 ? new State[kRadkePrimes[capacity_idx_]]
+                                  : &dummy_empty_state_) {
     std::fill(&states_[0], &states_[kRadkePrimes[capacity_idx_]], EMPTY);
   }
 
-  FlatSmallHashtable(FlatSmallHashtable&& other) = default;
+  FlatSmallHashtable(FlatSmallHashtable&& other)
+      : hash_fn_(std::move(other.hash_fn_)),
+        key_fn_(std::move(other.key_fn_)),
+        capacity_idx_(other.capacity_idx_),
+        used_(other.used_),
+        erased_(other.erased_),
+        resize_threshold_(other.resize_threshold_),
+        buffer_(other.buffer_),
+        states_(capacity_idx_ > 0 ? other.states_ : &dummy_empty_state_) {
+    other.buffer_ = nullptr;
+    other.states_ = nullptr;
+  }
 
   FlatSmallHashtable(const FlatSmallHashtable& other)
       : hash_fn_(other.hash_fn_),
@@ -193,15 +209,42 @@ class FlatSmallHashtable {
         used_(other.used_),
         erased_(other.erased_),
         resize_threshold_(other.resize_threshold_),
-        buffer_(new Entry[kRadkePrimes[capacity_idx_]]),
-        states_(new State[kRadkePrimes[capacity_idx_]]) {
-    std::copy(&other.buffer_[0], &other.buffer_[kRadkePrimes[capacity_idx_]],
-              &buffer_[0]);
+        buffer_(capacity_idx_ > 0 ? new Entry[kRadkePrimes[capacity_idx_]]
+                                  : nullptr),
+        states_(capacity_idx_ > 0 ? new State[kRadkePrimes[capacity_idx_]]
+                                  : &dummy_empty_state_) {
+    if (other.buffer_ != nullptr) {
+      std::copy(&other.buffer_[0], &other.buffer_[kRadkePrimes[capacity_idx_]],
+                &buffer_[0]);
+    }
     std::copy(&other.states_[0], &other.states_[kRadkePrimes[capacity_idx_]],
               &states_[0]);
   }
 
-  FlatSmallHashtable& operator=(FlatSmallHashtable&& other) = default;
+  ~FlatSmallHashtable() {
+    if (capacity_idx_ > 0) delete[] states_;
+    delete[] buffer_;
+  }
+
+  FlatSmallHashtable& operator=(FlatSmallHashtable&& other) {
+    hash_fn_ = std::move(other.hash_fn_);
+    key_fn_ = std::move(other.key_fn_);
+    capacity_idx_ = other.capacity_idx_;
+    used_ = other.used_;
+    erased_ = other.erased_;
+    resize_threshold_ = other.resize_threshold_;
+    delete[] buffer_;
+    if (capacity_idx_ > 0) {
+      buffer_ = other.buffer_;
+      states_ = other.states_;
+      other.buffer_ = nullptr;
+      other.states_ = nullptr;
+    } else {
+      buffer_ = nullptr;
+      states_ = &dummy_empty_state_;
+    }
+    return *this;
+  }
 
   FlatSmallHashtable& operator=(const FlatSmallHashtable& other) {
     if (this != &other) {
@@ -211,10 +254,16 @@ class FlatSmallHashtable {
       used_ = other.used_;
       erased_ = other.erased_;
       resize_threshold_ = other.resize_threshold_;
-      buffer_.reset(new Entry[kRadkePrimes[capacity_idx_]]);
-      states_.reset(new State[kRadkePrimes[capacity_idx_]]);
-      std::copy(&other.buffer_[0], &other.buffer_[kRadkePrimes[capacity_idx_]],
-                &buffer_[0]);
+      delete[] buffer_;
+      buffer_ =
+          capacity_idx_ > 0 ? new Entry[kRadkePrimes[capacity_idx_]] : nullptr;
+      if (capacity_idx_ > 0) delete[] states_;
+      states_ = capacity_idx_ > 0 ? new State[kRadkePrimes[capacity_idx_]]
+                                  : &dummy_empty_state_;
+      if (other.buffer_ != nullptr) {
+        std::copy(&other.buffer_[0],
+                  &other.buffer_[kRadkePrimes[capacity_idx_]], &buffer_[0]);
+      }
       std::copy(&other.states_[0], &other.states_[kRadkePrimes[capacity_idx_]],
                 &states_[0]);
     }
@@ -332,7 +381,7 @@ class FlatSmallHashtable {
   void compact() {
     int capacity_idx = initialCapacityIdx(size());
     if (capacity_idx == capacity_idx_ && erased_ == 0) return;
-    assert(capacity_idx < 12);  // Or, exceeded maximum hashtable size.
+    assert(capacity_idx < 15);  // Or, exceeded maximum hashtable size.
     FlatSmallHashtable<Entry, Key, HashFn, KeyFn> newt(size(), hash_fn_,
                                                        key_fn_);
     for (const auto& e : *this) {
@@ -360,18 +409,14 @@ class FlatSmallHashtable {
         return std::make_pair(itr, false);
       }
       // Need to rehash.
-      assert(capacity_idx_ < 12);  // Or, exceeded maximum hashtable size.
-      FlatSmallHashtable<Entry, Key, HashFn, KeyFn> newt(ht_len(), hash_fn_,
+      assert(capacity_idx_ < 15);  // Or, exceeded maximum hashtable size.
+      FlatSmallHashtable<Entry, Key, HashFn, KeyFn> newt(size() + 1, hash_fn_,
                                                          key_fn_);
       for (const auto& e : *this) {
         newt.insert(e);
       }
       *this = std::move(newt);
-      // Retry the fast path.
       pos = fastmod(hash_fn_(key), capacity_idx_);
-      if (states_[pos] == FULL && key_fn_(buffer_[pos]) == key) {
-        return std::make_pair(Iterator(this, pos), false);
-      }
     }
     // Fast path for not found.
     if (states_[pos] == EMPTY) {
@@ -435,8 +480,9 @@ class FlatSmallHashtable {
   uint16_t used_;
   uint16_t erased_;
   uint16_t resize_threshold_;
-  std::unique_ptr<Entry[]> buffer_;
-  std::unique_ptr<State[]> states_;
+  Entry* buffer_;
+  State* states_;
+  State dummy_empty_state_;
 };
 
 }  // namespace roo_collections

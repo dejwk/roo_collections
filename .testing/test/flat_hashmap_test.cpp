@@ -126,7 +126,7 @@ TEST(FlatSmallHashMap, OperatorAssignment) {
   EXPECT_EQ(map1.at("m"), 13);
 }
 
-TEST(FlatSmallHashMap, tCopyConstructor) {
+TEST(FlatSmallHashMap, CopyConstructor) {
   std::vector<std::pair<std::string, int>> entries = {
       {"a", 1}, {"b", 2}, {"c", 3},  {"d", 4},  {"e", 5},  {"f", 6}, {"g", 7},
       {"h", 8}, {"i", 9}, {"j", 10}, {"k", 11}, {"l", 12}, {"m", 13}};
@@ -155,6 +155,29 @@ TEST(FlatSmallHashMap, Insert) {
   FlatSmallHashMap<std::string, int> map;
 
   EXPECT_TRUE(map.empty());
+
+  bool b = map.insert({"a", 10}).second;
+  EXPECT_TRUE(b);
+  EXPECT_EQ(map.size(), 1);
+  EXPECT_FALSE(map.empty());
+
+  b = map.insert({"a", 100}).second;
+  EXPECT_FALSE(b);
+  EXPECT_EQ(map.size(), 1);
+  EXPECT_FALSE(map.empty());
+
+  b = map.insert({"a", 10}).second;
+  EXPECT_FALSE(b);
+  EXPECT_EQ(map.size(), 1);
+  EXPECT_FALSE(map.empty());
+}
+
+TEST(FlatSmallHashMap, InsertFromDummyEmpty) {
+  FlatSmallHashMap<std::string, int> map(0);
+
+  EXPECT_TRUE(map.empty());
+  EXPECT_EQ(map.size(), 0);
+  EXPECT_FALSE(map.contains("a"));
 
   bool b = map.insert({"a", 10}).second;
   EXPECT_TRUE(b);
@@ -222,12 +245,12 @@ TEST(FlatSmallHashMap, Clear) {
 
   map.compact();
   EXPECT_EQ(map.size(), 1);
-  EXPECT_EQ(map.capacity(), 8);
+  EXPECT_EQ(map.capacity(), 2);
 
   map.erase(1);
 
   EXPECT_EQ(map.size(), 0);
-  EXPECT_EQ(map.capacity(), 8);
+  EXPECT_EQ(map.capacity(), 2);
 }
 
 TEST(FlatSmallHashMap, OperatorSubscript) {

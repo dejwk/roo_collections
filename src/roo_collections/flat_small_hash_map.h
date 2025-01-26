@@ -47,7 +47,25 @@ class FlatSmallHashMap
     return (*it).second;
   }
 
+  template <typename K,
+            typename = typename Base::has_is_transparent_t<HashFn, K>,
+            typename = typename Base::has_is_transparent_t<KeyCmpFn, K>>
+  const Value& at(const K& key) const {
+    auto it = this->find(key);
+    assert(it != this->end());
+    return (*it).second;
+  }
+
   Value& at(const Key& key) {
+    auto it = this->lookup(key);
+    assert(it != this->end());
+    return (*it).second;
+  }
+
+  template <typename K,
+            typename = typename Base::has_is_transparent_t<HashFn, K>,
+            typename = typename Base::has_is_transparent_t<KeyCmpFn, K>>
+  Value& at(const K& key) {
     auto it = this->lookup(key);
     assert(it != this->end());
     return (*it).second;
@@ -55,10 +73,29 @@ class FlatSmallHashMap
 
   const Value& operator[](const Key& key) const { return at(key); }
 
+  template <typename K,
+            typename = typename Base::has_is_transparent_t<HashFn, K>,
+            typename = typename Base::has_is_transparent_t<KeyCmpFn, K>>
+  const Value& operator[](const K& key) const {
+    return at(key);
+  }
+
   Value& operator[](const Key& key) {
     auto it = this->lookup(key);
     if (it == this->end()) {
       return (*this->insert({key, Value()}).first).second;
+    } else {
+      return (*it).second;
+    }
+  }
+
+  template <typename K,
+            typename = typename Base::has_is_transparent_t<HashFn, K>,
+            typename = typename Base::has_is_transparent_t<KeyCmpFn, K>>
+  Value& operator[](const K& key) {
+    auto it = this->lookup(key);
+    if (it == this->end()) {
+      return (*this->insert({Key(key), Value()}).first).second;
     } else {
       return (*it).second;
     }

@@ -60,6 +60,19 @@ template <typename Entry, typename Key, typename HashFn = std::hash<Key>,
           typename KeyFn = DefaultKeyFn<Entry>>
 class FlatSmallHashtable {
  public:
+  template <typename _Func, typename _SfinaeType, typename = std::void_t<>>
+  struct has_is_transparent {};
+
+  template <typename _Func, typename _SfinaeType>
+  struct has_is_transparent<_Func, _SfinaeType,
+                            std::void_t<typename _Func::is_transparent>> {
+    typedef void type;
+  };
+
+  template <typename _Func, typename _SfinaeType>
+  using has_is_transparent_t =
+      typename has_is_transparent<_Func, _SfinaeType>::type;
+
   enum State { EMPTY, DELETED, FULL };
 
   class ConstIterator {
@@ -352,7 +365,61 @@ class FlatSmallHashtable {
     }
   }
 
+  template <typename K, typename = has_is_transparent_t<HashFn, K>,
+            typename = has_is_transparent_t<KeyCmpFn, K>>
+  ConstIterator find(const K& key) const {
+    const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    if (states_[pos] == EMPTY) return end();
+    if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
+      return ConstIterator(this, pos);
+    }
+    const uint16_t cap = ht_len();
+    uint32_t p = pos;
+    p += (cap - 2);
+    int32_t j = 2 - cap;
+    while (true) {
+      if (p >= cap) p -= cap;
+      if (states_[p] == EMPTY) return end();
+      if (states_[p] == FULL && key_cmp_fn_(key_fn_(buffer_[p]), key)) {
+        return ConstIterator(this, p);
+      }
+      j += 2;
+      assert(j < cap);
+      p += (j >= 0 ? j : -j);
+    }
+  }
+
   bool erase(const Key& key) {
+    const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    if (states_[pos] == EMPTY) return false;
+    if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
+      states_[pos] = DELETED;
+      buffer_[pos] = Entry();
+      ++erased_;
+      return true;
+    }
+    const uint16_t cap = ht_len();
+    uint32_t p = pos;
+    p += (cap - 2);
+    int32_t j = 2 - cap;
+    while (true) {
+      if (p >= cap) p -= cap;
+      if (states_[p] == EMPTY) return false;
+      if (states_[p] == FULL && key_cmp_fn_(key_fn_(buffer_[p]), key)) {
+        states_[p] = DELETED;
+        buffer_[p] = Entry();
+        ++erased_;
+        return true;
+      }
+      j += 2;
+      assert(j < cap);
+      p += (j >= 0 ? j : -j);
+    }
+  }
+
+  template <typename K, typename = has_is_transparent_t<HashFn, K>,
+            typename = has_is_transparent_t<KeyCmpFn, K>>
+  bool erase(const K& key) {
     const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
     if (states_[pos] == EMPTY) return false;
     if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
@@ -403,6 +470,12 @@ class FlatSmallHashtable {
   }
 
   bool contains(const Key& key) const { return find(key).pos_ != ht_len(); }
+
+  template <typename K, typename = has_is_transparent_t<HashFn, K>,
+            typename = has_is_transparent_t<KeyCmpFn, K>>
+  bool contains(const K& key) const {
+    return find(key).pos_ != ht_len();
+  }
 
   // Returns {the iterator to the new element, true} if the element was
   // successfuly inserted; {the iterator to an existing element, false} if an
@@ -461,6 +534,30 @@ class FlatSmallHashtable {
 
  protected:
   Iterator lookup(const Key& key) {
+    const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    if (states_[pos] == EMPTY) return end();
+    if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
+      return Iterator(this, pos);
+    }
+    const uint16_t cap = ht_len();
+    uint32_t p = pos;
+    p += (cap - 2);
+    int32_t j = 2 - cap;
+    while (true) {
+      if (p >= cap) p -= cap;
+      if (states_[p] == EMPTY) return end();
+      if (states_[p] == FULL && key_cmp_fn_(key_fn_(buffer_[p]), key)) {
+        return Iterator(this, p);
+      }
+      j += 2;
+      assert(j < cap);
+      p += (j >= 0 ? j : -j);
+    }
+  }
+
+  template <typename K, typename = has_is_transparent_t<HashFn, K>,
+            typename = has_is_transparent_t<KeyCmpFn, K>>
+  Iterator lookup(const K& key) {
     const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
     if (states_[pos] == EMPTY) return end();
     if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {

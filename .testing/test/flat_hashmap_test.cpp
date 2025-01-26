@@ -4,21 +4,24 @@
 #include <iostream>
 #include <map>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 
 #include "gtest/gtest.h"
 #include "roo_collections/flat_small_hash_map.h"
 
 namespace roo_collections {
 
-template<typename K, typename V, typename HashFn>
-std::ostream& operator<<(std::ostream& out, const FlatSmallHashMap<K, V, HashFn>& map) {
+template <typename K, typename V, typename HashFn>
+std::ostream& operator<<(std::ostream& out,
+                         const FlatSmallHashMap<K, V, HashFn>& map) {
   bool first = true;
   out << "{";
   for (const auto& e : map) {
     if (first) {
       first = false;
     } else {
-      out << ", ";      
+      out << ", ";
     }
     out << "(" << e.first << ", " << e.second << ")";
   }
@@ -88,6 +91,30 @@ TEST(FlatSmallHashMap, At) {
   // }
 
   EXPECT_EQ(map.size(), 5);
+}
+
+struct string_hash {
+  // required to denote a transparent hash
+  using is_transparent = void;
+  // Hash operations required to be consistent:
+  // a == b => hash(a) == hash(b)
+  size_t operator()(const char* txt) const {
+    return std::hash<std::string_view>{}(txt);
+  }
+  size_t operator()(std::string_view txt) const {
+    return std::hash<std::string_view>{}(txt);
+  }
+  size_t operator()(const std::string& txt) const {
+    return std::hash<std::string>{}(txt);
+  }
+};
+
+TEST(FlatSmallHashMap, StringView) {
+  FlatSmallHashMap<std::string, int, string_hash, std::equal_to<>> map(
+      {{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"e", 5}});
+  map.find(std::string_view("a"));
+  EXPECT_EQ(1, map["a"]);
+  EXPECT_EQ(1, map[std::string_view("a")]);
 }
 
 TEST(FlatSmallHashMap, OperatorAssignment) {

@@ -3,7 +3,7 @@ cc_library(
     visibility = ["//visibility:public"],
     srcs = glob(
         [
-            "src/**/*.cpp",
+#            "src/**/*.cpp",
             "src/**/*.h",
         ],
     ),

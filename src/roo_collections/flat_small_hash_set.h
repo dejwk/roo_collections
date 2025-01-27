@@ -14,6 +14,6 @@ using FlatSmallHashSet =
 // char*, string_view, and Arduino String in the lookup functions.
 using FlatSmallStringHashSet =
     FlatSmallHashtable<std::string, std::string, TransparentStringHashFn,
-                       std::equal_to<void>, DefaultKeyFn<std::string>>;
+                       TransparentEq, DefaultKeyFn<std::string>>;
 
 }  // namespace roo_collections

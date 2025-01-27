@@ -110,6 +110,16 @@ struct TransparentStringHashFn {
 #endif
 };
 
+struct TransparentEq {
+  // Required to denote a transparent comparator.
+  using is_transparent = void;
+
+  template <typename X, typename Y>
+  inline bool operator()(const X& x, const Y& y) const {
+    return x == y;
+  }
+};
+
 template <typename _Func, typename _SfinaeType, typename = std::void_t<>>
 struct has_is_transparent {};
 

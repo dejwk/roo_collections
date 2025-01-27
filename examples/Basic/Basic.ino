@@ -92,6 +92,65 @@ void setup() {
     my_map.clear();
     Serial.println(my_map.size());
   }
+
+  {
+    Serial.println(
+        "Map from std::string to int, accepting heterogeneous key types");
+    roo_collections::FlatSmallStringHashMap<int> my_map;
+    // This map is similar to FlatSmallHashMap<std::string, int> in that it uses
+    // std::string as key. With this map however, you can use not just
+    // std::string, but also, roo::string_view, Arduino String, or plain const
+    // char* as a lookup key, and the implementation will not create temporary
+    // string objects.
+    my_map["a"] = 1;
+    my_map[std::string("b")] = 2;
+    my_map[roo::string_view("c")] = 3;
+    my_map.insert(std::make_pair("d", 4));
+    Serial.println(my_map.size());
+    Serial.println(my_map.erase("b"));
+    Serial.println(my_map.size());
+    Serial.println(my_map.erase("b"));
+    Serial.println(my_map.contains(roo::string_view("a")));
+    Serial.println(my_map.contains(String("b")));
+    for (const auto& e : my_map) {
+      Serial.printf("%s: %d\n", e.first.data(), e.second);
+    }
+    Serial.println(my_map["a"]);
+    my_map["a"] = 1000;
+    Serial.println(my_map["a"]);
+
+    my_map.clear();
+    Serial.println(my_map.size());
+  }
+
+  {
+    Serial.println("Map using constant C strings as keys");
+    roo_collections::FlatSmallHashMap<roo::string_view, int> my_map;
+    // In this map, storage for keys is not allocated; the map simply references
+    // PROGMEM. (Each entry uses just the size of string_view, i.e. 8 bytes).
+    // (You can also use any strings pre-allocated in RAM and referencable as
+    // roo::string_view, as long as they remain constant for as long as they are
+    // used in the map).
+    my_map["a"] = 1;
+    my_map[std::string("b")] = 2;
+    my_map[roo::string_view("c")] = 3;
+    my_map.insert(std::make_pair("d", 4));
+    Serial.println(my_map.size());
+    Serial.println(my_map.erase("b"));
+    Serial.println(my_map.size());
+    Serial.println(my_map.erase("b"));
+    Serial.println(my_map.contains(roo::string_view("a")));
+    Serial.println(my_map.contains("b"));
+    for (const auto& e : my_map) {
+      Serial.printf("%s: %d\n", e.first.data(), e.second);
+    }
+    Serial.println(my_map["a"]);
+    my_map["a"] = 1000;
+    Serial.println(my_map["a"]);
+
+    my_map.clear();
+    Serial.println(my_map.size());
+  }
 }
 
 void loop() {}

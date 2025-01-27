@@ -13,6 +13,18 @@ struct MapKeyFn {
   }
 };
 
+template <typename Key, typename T>
+struct KeyCovert {
+  Key operator()(const T& val) const { return Key(val); }
+};
+
+template <>
+struct KeyCovert<std::string, ::roo::string_view> {
+  std::string operator()(const ::roo::string_view& val) const {
+    return std::string(val.data(), val.size());
+  }
+};
+
 template <typename Key, typename Value, typename HashFn = DefaultHashFn<Key>,
           typename KeyCmpFn = std::equal_to<Key>>
 class FlatSmallHashMap
@@ -49,8 +61,7 @@ class FlatSmallHashMap
     return (*it).second;
   }
 
-  template <typename K,
-            typename = has_is_transparent_t<HashFn, K>,
+  template <typename K, typename = has_is_transparent_t<HashFn, K>,
             typename = has_is_transparent_t<KeyCmpFn, K>>
   const Value& at(const K& key) const {
     auto it = this->find(key);
@@ -64,8 +75,7 @@ class FlatSmallHashMap
     return (*it).second;
   }
 
-  template <typename K,
-            typename = has_is_transparent_t<HashFn, K>,
+  template <typename K, typename = has_is_transparent_t<HashFn, K>,
             typename = has_is_transparent_t<KeyCmpFn, K>>
   Value& at(const K& key) {
     auto it = this->lookup(key);
@@ -75,8 +85,7 @@ class FlatSmallHashMap
 
   const Value& operator[](const Key& key) const { return at(key); }
 
-  template <typename K,
-            typename = has_is_transparent_t<HashFn, K>,
+  template <typename K, typename = has_is_transparent_t<HashFn, K>,
             typename = has_is_transparent_t<KeyCmpFn, K>>
   const Value& operator[](const K& key) const {
     return at(key);
@@ -91,13 +100,12 @@ class FlatSmallHashMap
     }
   }
 
-  template <typename K,
-            typename = has_is_transparent_t<HashFn, K>,
+  template <typename K, typename = has_is_transparent_t<HashFn, K>,
             typename = has_is_transparent_t<KeyCmpFn, K>>
   Value& operator[](const K& key) {
     auto it = this->lookup(key);
     if (it == this->end()) {
-      return (*this->insert({Key(key), Value()}).first).second;
+      return (*this->insert({KeyCovert<Key, K>()(key), Value()}).first).second;
     } else {
       return (*it).second;
     }
@@ -108,6 +116,7 @@ class FlatSmallHashMap
 // char*, string_view, and Arduino String in the lookup functions.
 template <typename Value>
 using FlatSmallStringHashMap =
-    FlatSmallHashMap<std::string, Value, TransparentStringHashFn, std::equal_to<void>>;
+    FlatSmallHashMap<std::string, Value, TransparentStringHashFn,
+                     TransparentEq>;
 
 }  // namespace roo_collections

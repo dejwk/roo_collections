@@ -7,6 +7,13 @@
 #include <initializer_list>
 #include <memory>
 
+#include "roo_backport/string_view.h"
+#include "roo_collections/hash.h"
+
+#ifdef ARDUINO
+#include <WString.h>
+#endif
+
 namespace roo_collections {
 
 // Slightly higher than conventional 0.7, mostly so that the default-capacity
@@ -48,6 +55,74 @@ inline int initialCapacityIdx(uint16_t size_hint) {
 template <typename Key>
 struct DefaultHashFn : public std::hash<Key> {};
 
+template <>
+struct DefaultHashFn<::roo::string_view> {
+  inline size_t operator()(::roo::string_view val) const {
+    return murmur3_32(val.data(), val.size(), 0x92F4E42BUL);
+  }
+};
+
+template <>
+struct DefaultHashFn<std::string> {
+  inline size_t operator()(const std::string& val) const {
+    return DefaultHashFn<::roo::string_view>()(::roo::string_view(val));
+  }
+};
+
+template <>
+struct DefaultHashFn<const char*> {
+  inline size_t operator()(const char* val) const {
+    return DefaultHashFn<::roo::string_view>()(::roo::string_view(val));
+  }
+};
+
+#ifdef ARDUINO
+template <>
+struct DefaultHashFn<::String> {
+  size_t operator()(::String val) const {
+    return DefaultHashFn<::roo::string_view>()(
+        ::roo::string_view(val.c_str(), val.length()));
+  }
+};
+#endif
+
+struct TransparentStringHashFn {
+  // Required to denote a transparent hash.
+  using is_transparent = void;
+
+  // Hash operations required to be consistent:
+  // a == b => hash(a) == hash(b).
+
+  inline size_t operator()(const std::string& val) const {
+    return DefaultHashFn<std::string>()(val);
+  }
+  inline size_t operator()(const char* val) const {
+    return DefaultHashFn<const char*>()(val);
+  }
+  inline size_t operator()(::roo::string_view val) const {
+    return DefaultHashFn<::roo::string_view>()(val);
+  }
+
+#ifdef ARDUINO
+  inline size_t operator()(::String val) const {
+    return DefaultHashFn<::String>()(val);
+  }
+#endif
+};
+
+template <typename _Func, typename _SfinaeType, typename = std::void_t<>>
+struct has_is_transparent {};
+
+template <typename _Func, typename _SfinaeType>
+struct has_is_transparent<_Func, _SfinaeType,
+                          std::void_t<typename _Func::is_transparent>> {
+  typedef void type;
+};
+
+template <typename _Func, typename _SfinaeType>
+using has_is_transparent_t =
+    typename has_is_transparent<_Func, _SfinaeType>::type;
+
 // For maps, where Key == Entry.
 template <typename Entry>
 struct DefaultKeyFn {
@@ -55,24 +130,11 @@ struct DefaultKeyFn {
 };
 
 // Memory-conscious small flat hashtable. It can hold up to 64000 elements.
-template <typename Entry, typename Key, typename HashFn = std::hash<Key>,
-          typename KeyCmpFn = std::equal_to<Key>,
-          typename KeyFn = DefaultKeyFn<Entry>>
+template <typename Entry, typename Key, typename HashFn = DefaultHashFn<Key>,
+          typename KeyFn = DefaultKeyFn<Entry>,
+          typename KeyCmpFn = std::equal_to<Key>>
 class FlatSmallHashtable {
  public:
-  template <typename _Func, typename _SfinaeType, typename = std::void_t<>>
-  struct has_is_transparent {};
-
-  template <typename _Func, typename _SfinaeType>
-  struct has_is_transparent<_Func, _SfinaeType,
-                            std::void_t<typename _Func::is_transparent>> {
-    typedef void type;
-  };
-
-  template <typename _Func, typename _SfinaeType>
-  using has_is_transparent_t =
-      typename has_is_transparent<_Func, _SfinaeType>::type;
-
   enum State { EMPTY, DELETED, FULL };
 
   class ConstIterator {
@@ -114,11 +176,11 @@ class FlatSmallHashtable {
     friend class FlatSmallHashtable;
 
     ConstIterator(
-        const FlatSmallHashtable<Entry, Key, HashFn, KeyCmpFn, KeyFn>* ht,
+        const FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>* ht,
         uint16_t pos)
         : ht_(ht), pos_(pos) {}
 
-    const FlatSmallHashtable<Entry, Key, HashFn, KeyCmpFn, KeyFn>* ht_;
+    const FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>* ht_;
     uint16_t pos_;
   };
 
@@ -162,39 +224,39 @@ class FlatSmallHashtable {
    private:
     friend class FlatSmallHashtable;
 
-    Iterator(FlatSmallHashtable<Entry, Key, HashFn, KeyCmpFn, KeyFn>* ht,
+    Iterator(FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>* ht,
              uint16_t pos)
         : ht_(ht), pos_(pos) {}
 
-    FlatSmallHashtable<Entry, Key, HashFn, KeyCmpFn, KeyFn>* ht_;
+    FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>* ht_;
     uint16_t pos_;
   };
 
   template <typename InputIt>
   FlatSmallHashtable(InputIt first, InputIt last, HashFn hash_fn = HashFn(),
-                     KeyCmpFn key_cmp_fn = KeyCmpFn(), KeyFn key_fn = KeyFn())
-      : FlatSmallHashtable(std::max((int)(last - first), 8), hash_fn,
-                           key_cmp_fn, key_fn) {
+                     KeyFn key_fn = KeyFn(), KeyCmpFn key_cmp_fn = KeyCmpFn())
+      : FlatSmallHashtable(std::max((int)(last - first), 8), hash_fn, key_fn,
+                           key_cmp_fn) {
     for (auto it = first; it != last; ++it) {
       insert(*it);
     }
   }
 
   FlatSmallHashtable(std::initializer_list<Entry> init,
-                     HashFn hash_fn = HashFn(),
-                     KeyCmpFn key_cmp_fn = KeyCmpFn(), KeyFn key_fn = KeyFn())
-      : FlatSmallHashtable(init.begin(), init.end(), hash_fn, key_cmp_fn,
-                           key_fn) {}
+                     HashFn hash_fn = HashFn(), KeyFn key_fn = KeyFn(),
+                     KeyCmpFn key_cmp_fn = KeyCmpFn())
+      : FlatSmallHashtable(init.begin(), init.end(), hash_fn, key_fn,
+                           key_cmp_fn) {}
 
-  FlatSmallHashtable(HashFn hash_fn = HashFn(),
-                     KeyCmpFn key_cmp_fn = KeyCmpFn(), KeyFn key_fn = KeyFn())
-      : FlatSmallHashtable(8, hash_fn, key_cmp_fn, key_fn) {}
+  FlatSmallHashtable(HashFn hash_fn = HashFn(), KeyFn key_fn = KeyFn(),
+                     KeyCmpFn key_cmp_fn = KeyCmpFn())
+      : FlatSmallHashtable(8, hash_fn, key_fn, key_cmp_fn) {}
 
   FlatSmallHashtable(uint16_t size_hint, HashFn hash_fn = HashFn(),
-                     KeyCmpFn key_cmp_fn = KeyCmpFn(), KeyFn key_fn = KeyFn())
+                     KeyFn key_fn = KeyFn(), KeyCmpFn key_cmp_fn = KeyCmpFn())
       : hash_fn_(hash_fn),
-        key_cmp_fn_(key_cmp_fn),
         key_fn_(key_fn),
+        key_cmp_fn_(key_cmp_fn),
         capacity_idx_(initialCapacityIdx(size_hint)),
         used_(0),
         erased_(0),
@@ -212,8 +274,8 @@ class FlatSmallHashtable {
 
   FlatSmallHashtable(FlatSmallHashtable&& other)
       : hash_fn_(std::move(other.hash_fn_)),
-        key_cmp_fn_(std::move(other.key_cmp_fn_)),
         key_fn_(std::move(other.key_fn_)),
+        key_cmp_fn_(std::move(other.key_cmp_fn_)),
         capacity_idx_(other.capacity_idx_),
         used_(other.used_),
         erased_(other.erased_),
@@ -226,8 +288,8 @@ class FlatSmallHashtable {
 
   FlatSmallHashtable(const FlatSmallHashtable& other)
       : hash_fn_(other.hash_fn_),
-        key_cmp_fn_(other.key_cmp_fn_),
         key_fn_(other.key_fn_),
+        key_cmp_fn_(other.key_cmp_fn_),
         capacity_idx_(other.capacity_idx_),
         used_(other.used_),
         erased_(other.erased_),
@@ -251,8 +313,8 @@ class FlatSmallHashtable {
 
   FlatSmallHashtable& operator=(FlatSmallHashtable&& other) {
     hash_fn_ = std::move(other.hash_fn_);
-    key_cmp_fn_ = std::move(other.key_cmp_fn_);
     key_fn_ = std::move(other.key_fn_);
+    key_cmp_fn_ = std::move(other.key_cmp_fn_);
     capacity_idx_ = other.capacity_idx_;
     used_ = other.used_;
     erased_ = other.erased_;
@@ -273,8 +335,8 @@ class FlatSmallHashtable {
   FlatSmallHashtable& operator=(const FlatSmallHashtable& other) {
     if (this != &other) {
       hash_fn_ = other.hash_fn_;
-      key_cmp_fn_ = other.key_cmp_fn_;
       key_fn_ = other.key_fn_;
+      key_cmp_fn_ = other.key_cmp_fn_;
       capacity_idx_ = other.capacity_idx_;
       used_ = other.used_;
       erased_ = other.erased_;
@@ -461,8 +523,8 @@ class FlatSmallHashtable {
     int capacity_idx = initialCapacityIdx(size());
     if (capacity_idx == capacity_idx_ && erased_ == 0) return;
     assert(capacity_idx < 15);  // Or, exceeded maximum hashtable size.
-    FlatSmallHashtable<Entry, Key, HashFn, KeyCmpFn, KeyFn> newt(
-        size(), hash_fn_, key_cmp_fn_, key_fn_);
+    FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn> newt(
+        size(), hash_fn_, key_fn_, key_cmp_fn_);
     for (const auto& e : *this) {
       newt.insert(e);
     }
@@ -495,8 +557,8 @@ class FlatSmallHashtable {
       }
       // Need to rehash.
       assert(capacity_idx_ < 15);  // Or, exceeded maximum hashtable size.
-      FlatSmallHashtable<Entry, Key, HashFn, KeyCmpFn, KeyFn> newt(
-          size() + 1, hash_fn_, key_cmp_fn_, key_fn_);
+      FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn> newt(
+          size() + 1, hash_fn_, key_fn_, key_cmp_fn_);
       for (const auto& e : *this) {
         newt.insert(e);
       }
@@ -584,8 +646,8 @@ class FlatSmallHashtable {
   friend class Iterator;
 
   HashFn hash_fn_;
-  KeyCmpFn key_cmp_fn_;
   KeyFn key_fn_;
+  KeyCmpFn key_cmp_fn_;
   int capacity_idx_;
   uint16_t used_;
   uint16_t erased_;
@@ -596,27 +658,3 @@ class FlatSmallHashtable {
 };
 
 }  // namespace roo_collections
-
-#ifdef ARDUINO
-
-#include "WString.h"
-
-namespace roo_collections {
-
-// A simple specialization for the Arduino String.
-template <>
-struct DefaultHashFn<String> {
-  size_t operator()(const String& s) const noexcept {
-    size_t h = 0;
-    unsigned int size = s.length();
-    const char* data = s.c_str();
-    while (size-- > 0) {
-      h = ((h << 5) + h) ^ *data++;
-    }
-    return h;
-  }
-};
-
-}  // namespace roo_collections
-
-#endif

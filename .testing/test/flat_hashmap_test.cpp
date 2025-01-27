@@ -93,28 +93,12 @@ TEST(FlatSmallHashMap, At) {
   EXPECT_EQ(map.size(), 5);
 }
 
-struct string_hash {
-  // required to denote a transparent hash
-  using is_transparent = void;
-  // Hash operations required to be consistent:
-  // a == b => hash(a) == hash(b)
-  size_t operator()(const char* txt) const {
-    return std::hash<std::string_view>{}(txt);
-  }
-  size_t operator()(std::string_view txt) const {
-    return std::hash<std::string_view>{}(txt);
-  }
-  size_t operator()(const std::string& txt) const {
-    return std::hash<std::string>{}(txt);
-  }
-};
-
 TEST(FlatSmallHashMap, StringView) {
-  FlatSmallHashMap<std::string, int, string_hash, std::equal_to<>> map(
-      {{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"e", 5}});
-  map.find(std::string_view("a"));
+  FlatSmallHashMap<std::string, int, TransparentStringHashFn, std::equal_to<>>
+      map({{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"e", 5}});
+  ASSERT_TRUE(map.find(std::string_view("a")) != map.end());
   EXPECT_EQ(1, map["a"]);
-  EXPECT_EQ(1, map[std::string_view("a")]);
+  EXPECT_EQ(2, map[std::string_view("b")]);
 }
 
 TEST(FlatSmallHashMap, OperatorAssignment) {

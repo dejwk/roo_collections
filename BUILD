@@ -2,14 +2,15 @@
 
 cc_library(
     name = "roo_collections",
-    srcs = [
-        "src/roo_collections.h",
-        "src/roo_collections/flat_small_hashtable.h",
-        "src/roo_collections/flat_small_hash_set.h",
-        "src/roo_collections/flat_small_hash_map.h",
-    ],
+    srcs = glob(
+        [
+            "src/**/*.cpp",
+            "src/**/*.h",
+        ],
+    ),
     includes = [
         "src",
     ],
+    deps = ["//lib/roo_backport"],
     visibility = ["//visibility:public"],
 )

@@ -22,5 +22,8 @@
     "build": {
         "srcDir": "src",
         "srcFilter": "+<*> -<examples> -<test>"
+    },
+    "dependencies": {
+        "dejwk/roo_backport": ">0"
     }
 }

@@ -21,5 +21,6 @@ cc_test(
     deps = [
         ":roo_collections",
         "@gtest//:gtest_main",
+        "@roo_backport//:roo_backport",
     ],
 )

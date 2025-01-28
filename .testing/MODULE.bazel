@@ -5,3 +5,9 @@ http_archive(
   url = "https://github.com/google/googletest/archive/v1.8.x.zip",
   strip_prefix = "googletest-1.8.x",
 )
+
+http_archive(
+  name = "roo_backport",
+  url = "https://github.com/dejwk/roo_backport/archive/refs/heads/master.zip",
+  strip_prefix = "roo_backport-main",
+)

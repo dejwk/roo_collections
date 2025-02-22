@@ -83,6 +83,12 @@ class FlatSmallHashMap
     return (*it).second;
   }
 
+  typename Base::Iterator find(const Key& key) { return Base::lookup(key); }
+
+  typename Base::ConstIterator find(const Key& key) const {
+    return Base::find(key);
+  }
+
   const Value& operator[](const Key& key) const { return at(key); }
 
   template <typename K, typename = has_is_transparent_t<HashFn, K>,

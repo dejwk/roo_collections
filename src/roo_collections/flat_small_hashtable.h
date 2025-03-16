@@ -9,6 +9,7 @@
 
 #include "roo_backport/string_view.h"
 #include "roo_collections/hash.h"
+#include "roo_collections/small_string.h"
 
 #ifdef ARDUINO
 #include <WString.h>
@@ -76,6 +77,13 @@ struct DefaultHashFn<const char*> {
   }
 };
 
+template <size_t N>
+struct DefaultHashFn<SmallString<N>> {
+  size_t operator()(const SmallString<N>& str) {
+    return DefaultHashFn<::roo::string_view>()(str);
+  }
+};
+
 #ifdef ARDUINO
 template <>
 struct DefaultHashFn<::String> {
@@ -100,6 +108,10 @@ struct TransparentStringHashFn {
     return DefaultHashFn<const char*>()(val);
   }
   inline size_t operator()(::roo::string_view val) const {
+    return DefaultHashFn<::roo::string_view>()(val);
+  }
+  template <size_t N>
+  inline size_t operator()(const SmallString<N>& val) const {
     return DefaultHashFn<::roo::string_view>()(val);
   }
 

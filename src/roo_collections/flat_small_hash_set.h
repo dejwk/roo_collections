@@ -6,9 +6,10 @@
 
 namespace roo_collections {
 
-template <typename Key, typename HashFn = DefaultHashFn<Key>>
+template <typename Key, typename HashFn = DefaultHashFn<Key>,
+          typename KeyCmpFn = std::equal_to<Key>>
 using FlatSmallHashSet =
-    FlatSmallHashtable<Key, Key, HashFn, DefaultKeyFn<Key>>;
+    FlatSmallHashtable<Key, Key, HashFn, DefaultKeyFn<Key>, KeyCmpFn>;
 
 // Convenience specialization for strings, that can accept std::string, const
 // char*, string_view, and Arduino String in the lookup functions.

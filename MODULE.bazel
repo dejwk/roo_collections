@@ -1,3 +1,7 @@
+http_archive = use_repo_rule(
+    "@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive",
+)
+
 http_archive(
   name = "roo_backport",
   url = "https://github.com/dejwk/roo_backport/archive/refs/heads/master.zip",

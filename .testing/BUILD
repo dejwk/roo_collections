@@ -20,7 +20,7 @@ cc_test(
     linkstatic = 1,
     deps = [
         ":roo_collections",
-        "@gtest//:gtest_main",
+        "@googletest//:gtest_main",
         "@roo_backport//:roo_backport",
     ],
 )

@@ -85,7 +85,19 @@ class FlatSmallHashMap
 
   typename Base::Iterator find(const Key& key) { return Base::lookup(key); }
 
+  template <typename K, typename = has_is_transparent_t<HashFn, K>,
+            typename = has_is_transparent_t<KeyCmpFn, K>>
+  typename Base::Iterator find(const K& key) {
+    return Base::lookup(key);
+  }
+
   typename Base::ConstIterator find(const Key& key) const {
+    return Base::find(key);
+  }
+
+  template <typename K, typename = has_is_transparent_t<HashFn, K>,
+            typename = has_is_transparent_t<KeyCmpFn, K>>
+  typename Base::ConstIterator find(const K& key) const {
     return Base::find(key);
   }
 

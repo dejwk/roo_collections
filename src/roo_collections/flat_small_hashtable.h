@@ -304,8 +304,11 @@ class FlatSmallHashtable {
         resize_threshold_(other.resize_threshold_),
         buffer_(other.buffer_),
         states_(capacity_idx_ > 0 ? other.states_ : &dummy_empty_state_) {
+    other.capacity_idx_ = 0;
+    other.used_ = 0;
+    other.erased_ = 0;
     other.buffer_ = nullptr;
-    other.states_ = nullptr;
+    other.states_ = &dummy_empty_state_;
   }
 
   FlatSmallHashtable(const FlatSmallHashtable& other)
@@ -345,8 +348,11 @@ class FlatSmallHashtable {
     if (capacity_idx_ > 0) {
       buffer_ = other.buffer_;
       states_ = other.states_;
+      other.capacity_idx_ = 0;
+      other.used_ = 0;
+      other.erased_ = 0;
       other.buffer_ = nullptr;
-      other.states_ = nullptr;
+      other.states_ = &dummy_empty_state_;
     } else {
       buffer_ = nullptr;
       states_ = &dummy_empty_state_;
@@ -536,7 +542,11 @@ class FlatSmallHashtable {
   void clear() {
     if (used_ == 0 && erased_ == 0) return;
     std::fill(&states_[0], &states_[kRadkePrimes[capacity_idx_]], EMPTY);
-    std::fill(&buffer_[0], &buffer_[kRadkePrimes[capacity_idx_]], Entry());
+    for (size_t i = 0; i < kRadkePrimes[capacity_idx_]; ++i) {
+      buffer_[i] = Entry();
+    }
+    // Avoiding std::fill, because it doesn't work for non-copyable entries.
+    // std::fill(&buffer_[0], &buffer_[kRadkePrimes[capacity_idx_]], Entry());
     used_ = 0;
     erased_ = 0;
   }
@@ -547,8 +557,8 @@ class FlatSmallHashtable {
     assert(capacity_idx < 15);  // Or, exceeded maximum hashtable size.
     FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn> newt(
         size(), hash_fn_, key_fn_, key_cmp_fn_);
-    for (const auto& e : *this) {
-      newt.insert(e);
+    for (auto& e : *this) {
+      newt.insert(std::move(e));
     }
     *this = std::move(newt);
   }
@@ -572,19 +582,35 @@ class FlatSmallHashtable {
       return std::make_pair(Iterator(this, pos), false);
     }
     if (used_ >= resize_threshold_) {
-      // Before rehashing see if maybe the entry is already in the hashtable.
-      Iterator itr = lookup(key);
-      if (itr != end()) {
-        return std::make_pair(itr, false);
+      if (empty()) {
+        // Clearing is faster than rehashing.
+        clear();
+      } else {
+        // Before rehashing see if maybe the entry is already in the hashtable.
+        Iterator itr = lookup(key);
+        if (itr != end()) {
+          return std::make_pair(itr, false);
+        }
+        // Need to rehash.
+        FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn> newt(
+            size() + 1, hash_fn_, key_fn_, key_cmp_fn_);
+        // Check if we didn't exceed the maximum hashtable size.
+        assert(newt.capacity() >= size() + 1);
+        for (auto& e : *this) {
+          newt.insert(std::move(e));
+        }
+        if (newt.capacity() == capacity()) {
+          // In this case, prefer to reuse the old storage, and release the new
+          // storage, because doing otherwise thrashes the heap. (Experimentally
+          // observed on ESP32).
+          clear();
+          for (auto& e : newt) {
+            insert(std::move(e));
+          }
+        } else {
+          *this = std::move(newt);
+        }
       }
-      // Need to rehash.
-      assert(capacity_idx_ < 15);  // Or, exceeded maximum hashtable size.
-      FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn> newt(
-          size() + 1, hash_fn_, key_fn_, key_cmp_fn_);
-      for (const auto& e : *this) {
-        newt.insert(e);
-      }
-      *this = std::move(newt);
       pos = fastmod(hash_fn_(key), capacity_idx_);
     }
     // Fast path for not found.

@@ -112,7 +112,7 @@ class FlatSmallHashMap
   Value& operator[](const Key& key) {
     auto it = this->lookup(key);
     if (it == this->end()) {
-      return (*this->insert({key, Value()}).first).second;
+      return (*this->insert(std::make_pair(key, Value())).first).second;
     } else {
       return (*it).second;
     }
@@ -123,7 +123,9 @@ class FlatSmallHashMap
   Value& operator[](const K& key) {
     auto it = this->lookup(key);
     if (it == this->end()) {
-      return (*this->insert({KeyCovert<Key, K>()(key), Value()}).first).second;
+      return (*this->insert(std::make_pair(KeyCovert<Key, K>()(key), Value()))
+                   .first)
+          .second;
     } else {
       return (*it).second;
     }

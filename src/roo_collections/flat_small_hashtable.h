@@ -603,9 +603,12 @@ class FlatSmallHashtable {
           // In this case, prefer to reuse the old storage, and release the new
           // storage, because doing otherwise thrashes the heap. (Experimentally
           // observed on ESP32).
-          clear();
-          for (auto& e : newt) {
-            insert(std::move(e));
+          used_ = newt.used_;
+          erased_ = 0;
+          memcpy(states_, newt.states_,
+                 kRadkePrimes[capacity_idx_] * sizeof(State));
+          for (size_t i = 0; i < kRadkePrimes[capacity_idx_]; ++i) {
+            buffer_[i] = std::move(newt.buffer_[i]);
           }
         } else {
           *this = std::move(newt);

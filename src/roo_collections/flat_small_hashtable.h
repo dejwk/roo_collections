@@ -582,7 +582,7 @@ class FlatSmallHashtable {
       return std::make_pair(Iterator(this, pos), false);
     }
     if (used_ >= resize_threshold_) {
-      if (empty()) {
+      if (empty() && erased_ > 0) {
         // Clearing is faster than rehashing.
         clear();
       } else {

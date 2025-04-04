@@ -157,8 +157,6 @@ template <typename Entry, typename Key, typename HashFn = DefaultHashFn<Key>,
           typename KeyCmpFn = std::equal_to<Key>>
 class FlatSmallHashtable {
  public:
-  enum State { EMPTY, DELETED, FULL };
-
   class ConstIterator {
    public:
     using iterator_category = std::forward_iterator_tag;
@@ -714,6 +712,8 @@ class FlatSmallHashtable {
   }
 
  private:
+  enum State { EMPTY, DELETED, FULL };
+
   friend class ConstIterator;
   friend class Iterator;
 

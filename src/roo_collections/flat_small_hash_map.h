@@ -31,9 +31,17 @@ class FlatSmallHashMap
     : public FlatSmallHashtable<std::pair<Key, Value>, Key, HashFn,
                                 MapKeyFn<Key, Value>, KeyCmpFn> {
  public:
-  using value_type = std::pair<Key, Value>;
-  using Base = FlatSmallHashtable<value_type, Key, HashFn, MapKeyFn<Key, Value>,
-                                  KeyCmpFn>;
+  using mapped_type = Value;
+
+  using Base = FlatSmallHashtable<std::pair<Key, Value>, Key, HashFn,
+                                  MapKeyFn<Key, Value>, KeyCmpFn>;
+
+  using key_type = typename Base::key_type;
+  using value_type = typename Base::value_type;
+  using hasher = typename Base::hasher;
+  using key_equal = typename Base::key_equal;
+  using iterator = typename Base::iterator;
+  using const_iterator = typename Base::const_iterator;
 
   FlatSmallHashMap(HashFn hash_fn = HashFn(), KeyCmpFn key_cmp_fn = KeyCmpFn())
       : Base(hash_fn, MapKeyFn<Key, Value>(), key_cmp_fn) {}

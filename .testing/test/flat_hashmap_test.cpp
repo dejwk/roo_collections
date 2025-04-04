@@ -240,7 +240,7 @@ TEST(FlatSmallHashMap, RepetitiveInsertEraseOneElementDoesNotGrow) {
 TEST(FlatSmallHashMap, EraseUsingIterator) {
   FlatSmallHashMap<int, int> map({{0, 0}, {1, 1}, {2, 2}, {3, 3}});
   // Check if erase works for const iterator.
-  FlatSmallHashMap<int, int>::ConstIterator itr = map.begin();
+  FlatSmallHashMap<int, int>::const_iterator itr = map.begin();
   ASSERT_NE(itr, map.end());
   EXPECT_EQ(itr->first, 0);
   itr = map.erase(itr);

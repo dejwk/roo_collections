@@ -254,6 +254,13 @@ class FlatSmallHashtable {
     uint16_t pos_;
   };
 
+  using key_type = Key;
+  using value_type = Entry;
+  using hasher = HashFn;
+  using key_equal = KeyCmpFn;
+  using iterator = Iterator;
+  using const_iterator = ConstIterator;
+
   template <typename InputIt>
   FlatSmallHashtable(InputIt first, InputIt last, HashFn hash_fn = HashFn(),
                      KeyFn key_fn = KeyFn(), KeyCmpFn key_cmp_fn = KeyCmpFn())

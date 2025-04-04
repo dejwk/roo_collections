@@ -174,7 +174,7 @@ class FlatSmallHashtable {
       uint16_t ht_len = ht_->ht_len();
       do {
         ++pos_;
-      } while (pos_ < ht_len && ht_->states_[pos_] != FULL);
+      } while (pos_ < ht_len && ht_->states_[pos_] >= 0);
       return *this;
     }
 
@@ -223,7 +223,7 @@ class FlatSmallHashtable {
       uint16_t ht_len = ht_->ht_len();
       do {
         ++pos_;
-      } while (pos_ < ht_len && ht_->states_[pos_] != FULL);
+      } while (pos_ < ht_len && ht_->states_[pos_] >= 0);
       return *this;
     }
 
@@ -411,7 +411,7 @@ class FlatSmallHashtable {
     uint16_t cap = ht_len();
     uint16_t pos = 0;
     for (; pos < cap; ++pos) {
-      if (states_[pos] == FULL) break;
+      if (states_[pos] < 0) break;
     }
     return ConstIterator(this, pos);
   }
@@ -420,7 +420,7 @@ class FlatSmallHashtable {
     uint16_t cap = ht_len();
     uint16_t pos = 0;
     for (; pos < cap; ++pos) {
-      if (states_[pos] == FULL) break;
+      if (states_[pos] < 0) break;
     }
     return Iterator(this, pos);
   }
@@ -439,9 +439,11 @@ class FlatSmallHashtable {
   uint16_t capacity() const { return resize_threshold_; }
 
   ConstIterator find(const Key& key) const {
-    const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    size_t hash = hash_fn_(key);
+    const uint16_t pos = fastmod(hash, capacity_idx_);
     if (states_[pos] == EMPTY) return end();
-    if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
+    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
+        key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       return ConstIterator(this, pos);
     }
     const uint16_t cap = ht_len();
@@ -451,7 +453,8 @@ class FlatSmallHashtable {
     while (true) {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) return end();
-      if (states_[p] == FULL && key_cmp_fn_(key_fn_(buffer_[p]), key)) {
+      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
+          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         return ConstIterator(this, p);
       }
       j += 2;
@@ -463,9 +466,11 @@ class FlatSmallHashtable {
   template <typename K, typename = has_is_transparent_t<HashFn, K>,
             typename = has_is_transparent_t<KeyCmpFn, K>>
   ConstIterator find(const K& key) const {
-    const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    size_t hash = hash_fn_(key);
+    const uint16_t pos = fastmod(hash, capacity_idx_);
     if (states_[pos] == EMPTY) return end();
-    if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
+    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
+        key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       return ConstIterator(this, pos);
     }
     const uint16_t cap = ht_len();
@@ -475,7 +480,8 @@ class FlatSmallHashtable {
     while (true) {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) return end();
-      if (states_[p] == FULL && key_cmp_fn_(key_fn_(buffer_[p]), key)) {
+      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
+          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         return ConstIterator(this, p);
       }
       j += 2;
@@ -485,9 +491,11 @@ class FlatSmallHashtable {
   }
 
   bool erase(const Key& key) {
-    const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    size_t hash = hash_fn_(key);
+    const uint16_t pos = fastmod(hash, capacity_idx_);
     if (states_[pos] == EMPTY) return false;
-    if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
+    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
+        key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       buffer_[pos] = Entry();
       if (used_ == 1 && erased_ == 0) {
         // Fast path (fast-clear). It is safe to do because there was no
@@ -508,7 +516,8 @@ class FlatSmallHashtable {
     while (true) {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) return false;
-      if (states_[p] == FULL && key_cmp_fn_(key_fn_(buffer_[p]), key)) {
+      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
+          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         states_[p] = DELETED;
         buffer_[p] = Entry();
         ++erased_;
@@ -523,9 +532,11 @@ class FlatSmallHashtable {
   template <typename K, typename = has_is_transparent_t<HashFn, K>,
             typename = has_is_transparent_t<KeyCmpFn, K>>
   bool erase(const K& key) {
-    const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    size_t hash = hash_fn_(key);
+    const uint16_t pos = fastmod(hash, capacity_idx_);
     if (states_[pos] == EMPTY) return false;
-    if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
+    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
+        key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       states_[pos] = DELETED;
       buffer_[pos] = Entry();
       ++erased_;
@@ -538,7 +549,8 @@ class FlatSmallHashtable {
     while (true) {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) return false;
-      if (states_[p] == FULL && key_cmp_fn_(key_fn_(buffer_[p]), key)) {
+      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
+          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         states_[p] = DELETED;
         buffer_[p] = Entry();
         ++erased_;
@@ -595,9 +607,11 @@ class FlatSmallHashtable {
   // entry with the same key has already been in the hashmap.
   std::pair<Iterator, bool> insert(Entry val) {
     Key key = key_fn_(val);
-    uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    size_t hash = hash_fn_(key);
+    uint16_t pos = fastmod(hash, capacity_idx_);
     // Fast path.
-    if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
+    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
+        key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       return std::make_pair(Iterator(this, pos), false);
     }
     if (used_ >= resize_threshold_) {
@@ -633,11 +647,11 @@ class FlatSmallHashtable {
           *this = std::move(newt);
         }
       }
-      pos = fastmod(hash_fn_(key), capacity_idx_);
+      pos = fastmod(hash, capacity_idx_);
     }
     // Fast path for not found.
     if (states_[pos] == EMPTY) {
-      states_[pos] = FULL;
+      states_[pos] = (hash & 0x7F) | 0x80;
       buffer_[pos] = std::move(val);
       ++used_;
       return std::make_pair(Iterator(this, pos), true);
@@ -650,12 +664,13 @@ class FlatSmallHashtable {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) {
         // We can insert here.
-        states_[p] = FULL;
+        states_[p] = (hash & 0x7F) | 0x80;
         buffer_[p] = std::move(val);
         ++used_;
         return std::make_pair(Iterator(this, p), true);
       }
-      if (states_[p] == FULL && key_cmp_fn_(key_fn_(buffer_[p]), key)) {
+      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
+          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         return std::make_pair(Iterator(this, p), false);
       }
       j += 2;
@@ -666,9 +681,11 @@ class FlatSmallHashtable {
 
  protected:
   Iterator lookup(const Key& key) {
-    const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    size_t hash = hash_fn_(key);
+    const uint16_t pos = fastmod(hash, capacity_idx_);
     if (states_[pos] == EMPTY) return end();
-    if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
+    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
+        key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       return Iterator(this, pos);
     }
     const uint16_t cap = ht_len();
@@ -678,7 +695,8 @@ class FlatSmallHashtable {
     while (true) {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) return end();
-      if (states_[p] == FULL && key_cmp_fn_(key_fn_(buffer_[p]), key)) {
+      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
+          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         return Iterator(this, p);
       }
       j += 2;
@@ -690,9 +708,11 @@ class FlatSmallHashtable {
   template <typename K, typename = has_is_transparent_t<HashFn, K>,
             typename = has_is_transparent_t<KeyCmpFn, K>>
   Iterator lookup(const K& key) {
-    const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
+    size_t hash = hash_fn_(key);
+    const uint16_t pos = fastmod(hash, capacity_idx_);
     if (states_[pos] == EMPTY) return end();
-    if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
+    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
+        key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       return Iterator(this, pos);
     }
     const uint16_t cap = ht_len();
@@ -702,7 +722,8 @@ class FlatSmallHashtable {
     while (true) {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) return end();
-      if (states_[p] == FULL && key_cmp_fn_(key_fn_(buffer_[p]), key)) {
+      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
+          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         return Iterator(this, p);
       }
       j += 2;
@@ -712,7 +733,10 @@ class FlatSmallHashtable {
   }
 
  private:
-  enum State { EMPTY, DELETED, FULL };
+  using State = int8_t;
+  static constexpr State EMPTY = 0;
+  static constexpr State DELETED = 1;
+  // Full items are marked with a bit pattern of the form 0x80 + (hash & 0x7F).
 
   friend class ConstIterator;
   friend class Iterator;

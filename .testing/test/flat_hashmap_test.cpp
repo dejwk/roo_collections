@@ -225,6 +225,53 @@ TEST(FlatSmallHashMap, Erase) {
   EXPECT_EQ(map.size(), 6);
 }
 
+TEST(FlatSmallHashMap, RepetitiveInsertEraseOneElementDoesNotGrow) {
+  FlatSmallHashMap<int, int> map;
+  // In this case, we do expect some rehashing, but the storage should remain
+  // stationary.
+  for (int i = 0; i < 1000; ++i) {
+    map.insert({0, i});
+    ASSERT_TRUE(map.erase(0));
+  }
+  EXPECT_TRUE(map.empty());
+  EXPECT_EQ(map.capacity(), 8);
+}
+
+TEST(FlatSmallHashMap, EraseUsingIterator) {
+  FlatSmallHashMap<int, int> map({{0, 0}, {1, 1}, {2, 2}, {3, 3}});
+  // Check if erase works for const iterator.
+  FlatSmallHashMap<int, int>::ConstIterator itr = map.begin();
+  ASSERT_NE(itr, map.end());
+  EXPECT_EQ(itr->first, 0);
+  itr = map.erase(itr);
+  ASSERT_NE(itr, map.end());
+  EXPECT_EQ(itr->first, 1);
+  EXPECT_EQ(map.size(), 3);
+  itr = map.erase(itr);
+  ASSERT_NE(itr, map.end());
+  EXPECT_EQ(itr->first, 2);
+  EXPECT_EQ(map.size(), 2);
+  itr = map.erase(itr);
+  ASSERT_NE(itr, map.end());
+  EXPECT_EQ(itr->first, 3);
+  EXPECT_EQ(map.size(), 1);
+  itr = map.erase(itr);
+  ASSERT_EQ(itr, map.end());
+  itr = map.erase(itr);
+  ASSERT_EQ(itr, map.end());
+}
+
+TEST(FlatSmallHashMap, RepetitiveInsertEraseDoesNotGrow) {
+  std::vector<std::pair<int, int>> entries = {{0, 0}, {1, 1}, {2, 2}, {3, 3}};
+  FlatSmallHashMap<int, int> map;
+  for (int i = 0; i < 1000; ++i) {
+    map.insert({5, i});
+    ASSERT_TRUE(map.erase(5));
+  }
+  EXPECT_TRUE(map.empty());
+  EXPECT_EQ(map.capacity(), 8);
+}
+
 TEST(FlatSmallHashMap, Clear) {
   FlatSmallHashMap<int, int> map;
 

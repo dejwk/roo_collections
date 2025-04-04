@@ -545,7 +545,13 @@ class FlatSmallHashtable {
     }
   }
 
-  bool erase(const ConstIterator& itr) { return erase(key_fn_(*itr)); }
+  Iterator erase(const ConstIterator& itr) {
+    if (itr == end()) return end();
+    Iterator next(this, itr.pos_);
+    ++next;
+    erase(key_fn_(*itr));
+    return next;
+  }
 
   void clear() {
     if (used_ == 0 && erased_ == 0) return;

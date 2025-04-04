@@ -483,9 +483,17 @@ class FlatSmallHashtable {
     const uint16_t pos = fastmod(hash_fn_(key), capacity_idx_);
     if (states_[pos] == EMPTY) return false;
     if (states_[pos] == FULL && key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
-      states_[pos] = DELETED;
       buffer_[pos] = Entry();
-      ++erased_;
+      if (used_ == 1 && erased_ == 0) {
+        // Fast path (fast-clear). It is safe to do because there was no
+        // rehashing. (It only works when used_ == 1, because otherwise the
+        // other items might have been rehashed away from this bucket).
+        states_[pos] = EMPTY;
+        --used_;
+      } else {
+        states_[pos] = DELETED;
+        ++erased_;
+      }
       return true;
     }
     const uint16_t cap = ht_len();

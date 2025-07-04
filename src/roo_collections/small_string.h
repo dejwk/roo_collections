@@ -6,6 +6,7 @@
 #include <cstring>
 #include <string>
 
+#include "roo_backport.h"
 #include "roo_backport/string_view.h"
 #include "roo_collections/hash.h"
 

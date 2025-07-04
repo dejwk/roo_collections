@@ -7,6 +7,7 @@
 #include <initializer_list>
 #include <memory>
 
+#include "roo_backport.h"
 #include "roo_backport/string_view.h"
 #include "roo_collections/hash.h"
 #include "roo_collections/small_string.h"

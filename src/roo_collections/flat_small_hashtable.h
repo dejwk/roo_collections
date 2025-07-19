@@ -80,7 +80,7 @@ struct DefaultHashFn<const char*> {
 
 template <size_t N>
 struct DefaultHashFn<SmallString<N>> {
-  size_t operator()(const SmallString<N>& str) {
+  size_t operator()(const SmallString<N>& str) const {
     return DefaultHashFn<::roo::string_view>()(str);
   }
 };

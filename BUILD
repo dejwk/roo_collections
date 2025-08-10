@@ -11,6 +11,21 @@ cc_library(
     includes = [
         "src",
     ],
-    deps = ["//lib/roo_backport"],
+    deps = ["@roo_backport"],
     visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "flat_hashmap_test",
+    srcs = [
+        "test/flat_hashmap_test.cpp",
+    ],
+    includes = ["src"],
+    copts = ["-Iexternal/gtest/include"],
+    linkstatic = 1,
+    deps = [
+        ":roo_collections",
+        "@googletest//:gtest_main",
+    ],
+    size = "small"
 )

@@ -1,9 +1,0 @@
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
-bazel_dep(name = "googletest", version = "1.15.2")
-
-http_archive(
-  name = "roo_backport",
-  url = "https://github.com/dejwk/roo_backport/archive/refs/heads/master.zip",
-  strip_prefix = "roo_backport-main",
-)

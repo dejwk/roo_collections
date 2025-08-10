@@ -25,8 +25,8 @@ jobs:
 
     - name: Build
       run: |
-        (cd .testing; cp -Rf ../src .; ${GITHUB_WORKSPACE}/bin/bazel build //...)
+        ${GITHUB_WORKSPACE}/bin/bazel build //...
 
     - name: Test
       run: |
-        (cd .testing; ${GITHUB_WORKSPACE}/bin/bazel test //...)
+        ${GITHUB_WORKSPACE}/bin/bazel test //...

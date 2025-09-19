@@ -343,31 +343,36 @@ class FlatSmallHashtable {
   }
 
   FlatSmallHashtable& operator=(FlatSmallHashtable&& other) {
-    hash_fn_ = std::move(other.hash_fn_);
-    key_fn_ = std::move(other.key_fn_);
-    key_cmp_fn_ = std::move(other.key_cmp_fn_);
-    capacity_idx_ = other.capacity_idx_;
-    used_ = other.used_;
-    erased_ = other.erased_;
-    resize_threshold_ = other.resize_threshold_;
-    delete[] buffer_;
-    if (capacity_idx_ > 0) {
-      buffer_ = other.buffer_;
-      states_ = other.states_;
-      other.capacity_idx_ = 0;
-      other.used_ = 0;
-      other.erased_ = 0;
-      other.buffer_ = nullptr;
-      other.states_ = &dummy_empty_state_;
-    } else {
-      buffer_ = nullptr;
-      states_ = &dummy_empty_state_;
+    if (this != &other) {
+      if (capacity_idx_ > 0) delete[] states_;
+      delete[] buffer_;
+      hash_fn_ = std::move(other.hash_fn_);
+      key_fn_ = std::move(other.key_fn_);
+      key_cmp_fn_ = std::move(other.key_cmp_fn_);
+      capacity_idx_ = other.capacity_idx_;
+      used_ = other.used_;
+      erased_ = other.erased_;
+      resize_threshold_ = other.resize_threshold_;
+      if (capacity_idx_ > 0) {
+        buffer_ = other.buffer_;
+        states_ = other.states_;
+        other.capacity_idx_ = 0;
+        other.used_ = 0;
+        other.erased_ = 0;
+        other.buffer_ = nullptr;
+        other.states_ = &dummy_empty_state_;
+      } else {
+        buffer_ = nullptr;
+        states_ = &dummy_empty_state_;
+      }
     }
     return *this;
   }
 
   FlatSmallHashtable& operator=(const FlatSmallHashtable& other) {
     if (this != &other) {
+      if (capacity_idx_ > 0) delete[] states_;
+      delete[] buffer_;
       hash_fn_ = other.hash_fn_;
       key_fn_ = other.key_fn_;
       key_cmp_fn_ = other.key_cmp_fn_;
@@ -375,10 +380,8 @@ class FlatSmallHashtable {
       used_ = other.used_;
       erased_ = other.erased_;
       resize_threshold_ = other.resize_threshold_;
-      delete[] buffer_;
       buffer_ =
           capacity_idx_ > 0 ? new Entry[kRadkePrimes[capacity_idx_]] : nullptr;
-      if (capacity_idx_ > 0) delete[] states_;
       states_ = capacity_idx_ > 0 ? new State[kRadkePrimes[capacity_idx_]]
                                   : &dummy_empty_state_;
       if (other.buffer_ != nullptr) {

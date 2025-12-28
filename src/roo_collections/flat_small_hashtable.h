@@ -14,6 +14,17 @@
 
 #ifdef ARDUINO
 #include <WString.h>
+
+// Adding coparators that migt be missing on some platforms (notably RPI 2040).
+
+inline bool operator==(const ::String& a, roo::string_view b) {
+  return roo::string_view(a.c_str(), a.length()) == b;
+}
+
+inline bool operator==(roo::string_view a, const String& b) {
+  return (b == a);
+}
+
 #endif
 
 namespace roo_collections {

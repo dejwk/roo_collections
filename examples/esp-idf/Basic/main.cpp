@@ -140,6 +140,7 @@ void run() {
 extern "C" void app_main() {
   while (true) {
     run();
-    vTaskDelay(1000);
+    fflush(0);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }

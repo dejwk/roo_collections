@@ -3,8 +3,9 @@
 #include "roo_collections/flat_small_hash_map.h"
 #include "roo_collections/flat_small_hash_set.h"
 
-void setup() {
-  Serial.begin(9600);
+void setup() { Serial.begin(115200); }
+
+void loop() {
   {
     Serial.println("set of int32_t");
     roo_collections::FlatSmallHashSet<int32_t> my_set;
@@ -151,6 +152,6 @@ void setup() {
     my_map.clear();
     Serial.println(my_map.size());
   }
-}
 
-void loop() {}
+  delay(1000);
+}

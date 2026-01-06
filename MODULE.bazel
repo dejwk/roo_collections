@@ -1,4 +1,4 @@
-module(name = "roo_collections", version = "1.3.2")
+module(name = "roo_collections", version = "1.4.0")
 
 bazel_dep(name = "googletest", version = "1.17.0")
 

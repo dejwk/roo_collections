@@ -24,6 +24,6 @@
         "srcFilter": "+<*> -<examples> -<test>"
     },
     "dependencies": {
-        "dejwk/roo_backport": ">=1.2.0"
+        "dejwk/roo_backport": ">=1.2.1"
     }
 }

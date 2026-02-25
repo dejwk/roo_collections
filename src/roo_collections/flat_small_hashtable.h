@@ -1,5 +1,9 @@
 #pragma once
 
+/// @file
+/// @brief Flat, memory-conscious hash table implementation.
+/// @ingroup roo_collections
+
 #include <assert.h>
 #include <inttypes.h>
 
@@ -21,9 +25,7 @@ inline bool operator==(const ::String& a, roo::string_view b) {
   return roo::string_view(a.c_str(), a.length()) == b;
 }
 
-inline bool operator==(roo::string_view a, const String& b) {
-  return (b == a);
-}
+inline bool operator==(roo::string_view a, const String& b) { return (b == a); }
 
 #endif
 
@@ -163,12 +165,23 @@ struct DefaultKeyFn {
   const Entry& operator()(const Entry& entry) const { return entry; }
 };
 
-// Memory-conscious small flat hashtable. It can hold up to 64000 elements.
+/// @brief Flat, memory-conscious hash table optimized for small collections.
+///
+/// Uses open addressing with quadratic probing and stores entries in contiguous
+/// arrays for low overhead. Maximum supported size is approximately 64k
+/// elements.
+///
+/// @tparam Entry Stored entry type.
+/// @tparam Key Key type used for lookup.
+/// @tparam HashFn Hash function.
+/// @tparam KeyFn Extracts a key from an entry.
+/// @tparam KeyCmpFn Key equality predicate.
 template <typename Entry, typename Key, typename HashFn = DefaultHashFn<Key>,
           typename KeyFn = DefaultKeyFn<Entry>,
           typename KeyCmpFn = std::equal_to<Key>>
 class FlatSmallHashtable {
  public:
+  /// @brief Constant forward iterator.
   class ConstIterator {
    public:
     using iterator_category = std::forward_iterator_tag;
@@ -216,6 +229,7 @@ class FlatSmallHashtable {
     uint16_t pos_;
   };
 
+  /// @brief Mutable forward iterator.
   class Iterator {
    public:
     using iterator_category = std::forward_iterator_tag;
@@ -271,6 +285,7 @@ class FlatSmallHashtable {
   using iterator = Iterator;
   using const_iterator = ConstIterator;
 
+  /// @brief Constructs a table from an iterator range.
   template <typename InputIt>
   FlatSmallHashtable(InputIt first, InputIt last, HashFn hash_fn = HashFn(),
                      KeyFn key_fn = KeyFn(), KeyCmpFn key_cmp_fn = KeyCmpFn())
@@ -281,16 +296,20 @@ class FlatSmallHashtable {
     }
   }
 
+  /// @brief Constructs a table from an initializer list.
   FlatSmallHashtable(std::initializer_list<Entry> init,
                      HashFn hash_fn = HashFn(), KeyFn key_fn = KeyFn(),
                      KeyCmpFn key_cmp_fn = KeyCmpFn())
       : FlatSmallHashtable(init.begin(), init.end(), hash_fn, key_fn,
                            key_cmp_fn) {}
 
+  /// @brief Constructs an empty table with default initial capacity.
   FlatSmallHashtable(HashFn hash_fn = HashFn(), KeyFn key_fn = KeyFn(),
                      KeyCmpFn key_cmp_fn = KeyCmpFn())
       : FlatSmallHashtable(8, hash_fn, key_fn, key_cmp_fn) {}
 
+  /// @brief Constructs an empty table sized for `size_hint` elements.
+  /// @param size_hint Expected number of items.
   FlatSmallHashtable(uint16_t size_hint, HashFn hash_fn = HashFn(),
                      KeyFn key_fn = KeyFn(), KeyCmpFn key_cmp_fn = KeyCmpFn())
       : hash_fn_(hash_fn),
@@ -311,6 +330,7 @@ class FlatSmallHashtable {
     std::fill(&states_[0], &states_[kRadkePrimes[capacity_idx_]], EMPTY);
   }
 
+  /// @brief Move constructor.
   FlatSmallHashtable(FlatSmallHashtable&& other)
       : hash_fn_(std::move(other.hash_fn_)),
         key_fn_(std::move(other.key_fn_)),
@@ -328,6 +348,7 @@ class FlatSmallHashtable {
     other.states_ = &dummy_empty_state_;
   }
 
+  /// @brief Copy constructor.
   FlatSmallHashtable(const FlatSmallHashtable& other)
       : hash_fn_(other.hash_fn_),
         key_fn_(other.key_fn_),
@@ -348,11 +369,13 @@ class FlatSmallHashtable {
               &states_[0]);
   }
 
+  /// @brief Destructor.
   ~FlatSmallHashtable() {
     if (capacity_idx_ > 0) delete[] states_;
     delete[] buffer_;
   }
 
+  /// @brief Move assignment.
   FlatSmallHashtable& operator=(FlatSmallHashtable&& other) {
     if (this != &other) {
       if (capacity_idx_ > 0) delete[] states_;
@@ -380,6 +403,7 @@ class FlatSmallHashtable {
     return *this;
   }
 
+  /// @brief Copy assignment.
   FlatSmallHashtable& operator=(const FlatSmallHashtable& other) {
     if (this != &other) {
       if (capacity_idx_ > 0) delete[] states_;
@@ -405,6 +429,7 @@ class FlatSmallHashtable {
     return *this;
   }
 
+  /// @brief Equality comparison by key/value content.
   bool operator==(const FlatSmallHashtable& other) const {
     if (other.size() != size()) return false;
     // Note: maps with different capacities or different insert/erase history
@@ -420,8 +445,10 @@ class FlatSmallHashtable {
 
   bool operator!=(const FlatSmallHashtable& other) { return !(*this == other); }
 
+  /// @brief Returns the internal bucket array length.
   uint16_t ht_len() const { return kRadkePrimes[capacity_idx_]; }
 
+  /// @brief Returns an iterator to the first element.
   ConstIterator begin() const {
     uint16_t cap = ht_len();
     uint16_t pos = 0;
@@ -431,6 +458,7 @@ class FlatSmallHashtable {
     return ConstIterator(this, pos);
   }
 
+  /// @brief Returns a mutable iterator to the first element.
   Iterator begin() {
     uint16_t cap = ht_len();
     uint16_t pos = 0;
@@ -440,19 +468,23 @@ class FlatSmallHashtable {
     return Iterator(this, pos);
   }
 
+  /// @brief Returns iterator past the end.
   Iterator end() { return Iterator(this, ht_len()); }
+
+  /// @brief Returns const iterator past the end.
   ConstIterator end() const { return ConstIterator(this, ht_len()); }
 
-  // Returns the number of elements in the hashtable.
+  /// @brief Returns the number of stored elements.
   uint16_t size() const { return used_ - erased_; }
 
-  // Returns true if the hashtable has no elements.
+  /// @brief Returns whether the table is empty.
   bool empty() const { return used_ == erased_; }
 
-  // Returns the number of elements that the hashtable can hold before it needs
-  // to be rehashed.
+  /// @brief Returns the number of elements insertable before rehashing.
   uint16_t capacity() const { return resize_threshold_; }
 
+  /// @brief Finds `key` and returns a const iterator to the matching entry.
+  /// @return `end()` when not found.
   ConstIterator find(const Key& key) const {
     size_t hash = hash_fn_(key);
     const uint16_t pos = fastmod(hash, capacity_idx_);
@@ -478,6 +510,8 @@ class FlatSmallHashtable {
     }
   }
 
+  /// @brief Heterogeneous lookup overload of `find`.
+  /// @return `end()` when not found.
   template <typename K, typename = has_is_transparent_t<HashFn, K>,
             typename = has_is_transparent_t<KeyCmpFn, K>>
   ConstIterator find(const K& key) const {
@@ -505,6 +539,8 @@ class FlatSmallHashtable {
     }
   }
 
+  /// @brief Removes an entry by key.
+  /// @return `true` if an entry was removed.
   bool erase(const Key& key) {
     size_t hash = hash_fn_(key);
     const uint16_t pos = fastmod(hash, capacity_idx_);
@@ -544,6 +580,8 @@ class FlatSmallHashtable {
     }
   }
 
+  /// @brief Heterogeneous key overload of `erase`.
+  /// @return `true` if an entry was removed.
   template <typename K, typename = has_is_transparent_t<HashFn, K>,
             typename = has_is_transparent_t<KeyCmpFn, K>>
   bool erase(const K& key) {
@@ -577,6 +615,7 @@ class FlatSmallHashtable {
     }
   }
 
+  /// @brief Removes the entry at `itr` and returns iterator to the next entry.
   Iterator erase(const ConstIterator& itr) {
     if (itr == end()) return end();
     Iterator next(this, itr.pos_);
@@ -585,6 +624,7 @@ class FlatSmallHashtable {
     return next;
   }
 
+  /// @brief Removes all entries while preserving current allocated capacity.
   void clear() {
     if (used_ == 0 && erased_ == 0) return;
     std::fill(&states_[0], &states_[kRadkePrimes[capacity_idx_]], EMPTY);
@@ -597,6 +637,7 @@ class FlatSmallHashtable {
     erased_ = 0;
   }
 
+  /// @brief Rebuilds the table to remove tombstones and shrink capacity.
   void compact() {
     int capacity_idx = initialCapacityIdx(size());
     if (capacity_idx == capacity_idx_ && erased_ == 0) return;
@@ -609,17 +650,18 @@ class FlatSmallHashtable {
     *this = std::move(newt);
   }
 
+  /// @brief Returns whether `key` exists in the table.
   bool contains(const Key& key) const { return find(key).pos_ != ht_len(); }
 
+  /// @brief Heterogeneous key overload of `contains`.
   template <typename K, typename = has_is_transparent_t<HashFn, K>,
             typename = has_is_transparent_t<KeyCmpFn, K>>
   bool contains(const K& key) const {
     return find(key).pos_ != ht_len();
   }
 
-  // Returns {the iterator to the new element, true} if the element was
-  // successfuly inserted; {the iterator to an existing element, false} if an
-  // entry with the same key has already been in the hashmap.
+  /// @brief Inserts `val` if key is not present.
+  /// @return Pair of iterator and insertion flag.
   std::pair<Iterator, bool> insert(Entry val) {
     Key key = key_fn_(val);
     size_t hash = hash_fn_(key);

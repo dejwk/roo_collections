@@ -10,3 +10,33 @@ Hashtable authors obsess about performance. These hashtables have excellent perf
 These collections play nicely with strings. You can use strings as both keys and values. If your strings are constants (e.g. defined as compile-time `const char*` constants), you can use `roo::string_view` which ensures that no copies are made. If your lookup key is of a different string type
 than the storage key, e.g. if you use `std::string` keys but use `const char*` or `roo::string_view` for the lookup, no dynamic allocation is done; the internal comparator functions work with heterogeneous types. Additionally, the library contains a templated SmallString implementation
 which can be used to store small fixed-size strings inline (without using heap).
+
+## Doxygen
+
+Public headers are annotated with Doxygen comments and grouped under the `roo_collections` module.
+
+Generate API docs locally:
+
+1. Create a default config:
+
+	```bash
+	doxygen -g Doxyfile
+	```
+
+2. Set these values in `Doxyfile`:
+
+	```
+	PROJECT_NAME = "roo_collections"
+	INPUT = src
+	FILE_PATTERNS = *.h
+	RECURSIVE = YES
+	EXTRACT_ALL = NO
+	```
+
+3. Build docs:
+
+	```bash
+	doxygen Doxyfile
+	```
+
+The generated module page should include the group `roo_collections`.

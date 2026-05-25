@@ -25,6 +25,8 @@ namespace roo_collections {
 template <size_t N>
 class SmallString {
  public:
+  static_assert(N > 0, "SmallString capacity must be positive");
+
   /// @brief Maximum storage capacity (including the trailing '\0').
   static constexpr size_t kCapacity = N;
 
@@ -33,36 +35,34 @@ class SmallString {
 
   /// @brief Constructs from a C string.
   /// @param str Null-terminated source string.
-  SmallString(const char* str) { strncpy(data_, str, N); }
+  SmallString(const char* str) { assign(str, strlen(str)); }
 
   /// @brief Constructs from `std::string`.
   /// @param str Source string.
-  SmallString(const std::string& str) { strncpy(data_, str.c_str(), N); }
+  SmallString(const std::string& str) { assign(str.data(), str.size()); }
 
   /// @brief Constructs from `roo::string_view`.
   /// @param str Source view.
-  SmallString(const roo::string_view& str) {
-    strncpy(data_, str.data(), std::min(N, str.size() + 1));
-  }
+  SmallString(const roo::string_view& str) { assign(str.data(), str.size()); }
 
   /// @brief Copy constructor.
-  SmallString(const SmallString& other) { strncpy(data_, other.data_, N); }
+  SmallString(const SmallString& other) { assign(other.data_, other.length()); }
 
   /// @brief Copy assignment.
   SmallString& operator=(const SmallString& other) {
-    strncpy(data_, other.data_, N);
+    assign(other.data_, other.length());
     return *this;
   }
 
   /// @brief Assigns from C string.
   SmallString& operator=(const char* other) {
-    strncpy(data_, other, N);
+    assign(other, strlen(other));
     return *this;
   }
 
   /// @brief Assigns from `roo::string_view`.
   SmallString& operator=(roo::string_view other) {
-    strncpy(data_, other.data(), std::min(N, other.size() + 1));
+    assign(other.data(), other.size());
     return *this;
   }
 
@@ -91,6 +91,12 @@ class SmallString {
   }
 
  private:
+  void assign(const char* str, size_t len) {
+    len = std::min(len, N - 1);
+    memcpy(data_, str, len);
+    data_[len] = 0;
+  }
+
   char data_[N];
 };
 

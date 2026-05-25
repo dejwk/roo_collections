@@ -29,6 +29,6 @@ using FlatSmallHashSet =
 /// `String` (when available) for lookup operations.
 using FlatSmallStringHashSet =
     FlatSmallHashtable<std::string, std::string, TransparentStringHashFn,
-                       TransparentEq, DefaultKeyFn<std::string>>;
+                       DefaultKeyFn<std::string>, TransparentEq>;
 
 }  // namespace roo_collections

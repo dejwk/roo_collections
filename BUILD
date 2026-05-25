@@ -32,3 +32,61 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "flat_small_string_hash_set_compile_test",
+    size = "small",
+    srcs = [
+        "test/flat_small_string_hash_set_compile_test.cpp",
+    ],
+    includes = ["src"],
+    linkstatic = 1,
+    deps = [
+        ":roo_collections",
+    ],
+)
+
+cc_test(
+    name = "flat_small_hashmap_input_iterator_compile_test",
+    size = "small",
+    srcs = [
+        "test/flat_small_hashmap_input_iterator_compile_test.cpp",
+    ],
+    includes = ["src"],
+    linkstatic = 1,
+    deps = [
+        ":roo_collections",
+    ],
+)
+
+cc_test(
+    name = "flat_small_hashmap_const_neq_compile_test",
+    size = "small",
+    srcs = [
+        "test/flat_small_hashmap_const_neq_compile_test.cpp",
+    ],
+    includes = ["src"],
+    linkstatic = 1,
+    deps = [
+        ":roo_collections",
+    ],
+)
+
+cc_test(
+    name = "small_string_asan_test",
+    size = "small",
+    srcs = [
+        "test/small_string_test.cpp",
+    ],
+    copts = [
+        "-Iexternal/gtest/include",
+        "-fsanitize=address",
+    ],
+    includes = ["src"],
+    linkopts = ["-fsanitize=address"],
+    linkstatic = 1,
+    deps = [
+        ":roo_collections",
+        "@googletest//:gtest_main",
+    ],
+)

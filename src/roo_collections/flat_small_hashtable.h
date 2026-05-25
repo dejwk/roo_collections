@@ -9,6 +9,7 @@
 
 #include <functional>
 #include <initializer_list>
+#include <iterator>
 #include <memory>
 
 #include "roo_backport.h"
@@ -65,6 +66,27 @@ inline int initialCapacityIdx(uint16_t size_hint) {
     if (kRadkePrimes[radkeIdx] >= ht_len) return radkeIdx;
   }
   return 15;
+}
+
+template <typename InputIt>
+inline uint16_t initialCapacityHint(InputIt first, InputIt last,
+                                    std::input_iterator_tag) {
+  return 8;
+}
+
+template <typename ForwardIt>
+inline uint16_t initialCapacityHint(ForwardIt first, ForwardIt last,
+                                    std::forward_iterator_tag) {
+  size_t count = std::distance(first, last);
+  if (count > 65535) count = 65535;
+  if (count < 8) count = 8;
+  return count;
+}
+
+template <typename InputIt>
+inline uint16_t initialCapacityHint(InputIt first, InputIt last) {
+  return initialCapacityHint(
+      first, last, typename std::iterator_traits<InputIt>::iterator_category());
 }
 
 template <typename Key>
@@ -289,7 +311,7 @@ class FlatSmallHashtable {
   template <typename InputIt>
   FlatSmallHashtable(InputIt first, InputIt last, HashFn hash_fn = HashFn(),
                      KeyFn key_fn = KeyFn(), KeyCmpFn key_cmp_fn = KeyCmpFn())
-      : FlatSmallHashtable(std::max((int)(last - first), 8), hash_fn, key_fn,
+      : FlatSmallHashtable(initialCapacityHint(first, last), hash_fn, key_fn,
                            key_cmp_fn) {
     for (auto it = first; it != last; ++it) {
       insert(*it);
@@ -443,7 +465,9 @@ class FlatSmallHashtable {
     return true;
   }
 
-  bool operator!=(const FlatSmallHashtable& other) { return !(*this == other); }
+  bool operator!=(const FlatSmallHashtable& other) const {
+    return !(*this == other);
+  }
 
   /// @brief Returns the internal bucket array length.
   uint16_t ht_len() const { return kRadkePrimes[capacity_idx_]; }

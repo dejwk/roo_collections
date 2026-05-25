@@ -34,6 +34,21 @@ cc_test(
 )
 
 cc_test(
+    name = "hash_test",
+    size = "small",
+    srcs = [
+        "test/hash_test.cpp",
+    ],
+    copts = ["-Iexternal/gtest/include"],
+    includes = ["src"],
+    linkstatic = 1,
+    deps = [
+        ":roo_collections",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "flat_small_string_hash_set_compile_test",
     size = "small",
     srcs = [

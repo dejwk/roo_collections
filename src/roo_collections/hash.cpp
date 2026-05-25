@@ -14,7 +14,8 @@ uint32_t murmur3_32(const void* key, size_t len, uint32_t seed) {
   uint32_t h = seed;
   uint32_t k;
   for (size_t i = len >> 2; i; i--) {
-    k = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | (buf[3]);
+    k = ((uint32_t)buf[0]) | ((uint32_t)buf[1] << 8) |
+        ((uint32_t)buf[2] << 16) | ((uint32_t)buf[3] << 24);
     buf += 4;
     h ^= murmur_32_scramble(k);
     h = (h << 13) | (h >> 19);

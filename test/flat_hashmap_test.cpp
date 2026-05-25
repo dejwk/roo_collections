@@ -5,10 +5,13 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <unordered_map>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "roo_collections/flat_small_hash_map.h"
+#include "roo_collections/flat_small_hash_set.h"
 
 namespace roo_collections {
 
@@ -160,6 +163,40 @@ TEST(FlatSmallHashMap, CopyConstructor) {
   map2.at("m") = 130;
   EXPECT_EQ(map2.at("m"), 130);
   EXPECT_EQ(map1.at("m"), 13);
+}
+
+// Verifies a populated source set can be reused after move construction.
+TEST(FlatSmallHashSet, MoveConstructorLeavesSourceReusable) {
+  FlatSmallHashSet<int> source;
+  for (int i = 0; i < 20; ++i) {
+    source.insert(i);
+  }
+
+  FlatSmallHashSet<int> moved(std::move(source));
+
+  EXPECT_EQ(moved.size(), 20);
+  EXPECT_TRUE(source.empty());
+  source.insert(99);
+  EXPECT_EQ(source.size(), 1);
+  EXPECT_TRUE(source.contains(99));
+}
+
+// Verifies a populated source set can be reused after move assignment.
+TEST(FlatSmallHashSet, MoveAssignmentLeavesSourceReusable) {
+  FlatSmallHashSet<int> source;
+  for (int i = 0; i < 20; ++i) {
+    source.insert(i);
+  }
+
+  FlatSmallHashSet<int> moved;
+  moved.insert(-1);
+  moved = std::move(source);
+
+  EXPECT_EQ(moved.size(), 20);
+  EXPECT_TRUE(source.empty());
+  source.insert(101);
+  EXPECT_EQ(source.size(), 1);
+  EXPECT_TRUE(source.contains(101));
 }
 
 TEST(FlatSmallHashMap, Insert) {

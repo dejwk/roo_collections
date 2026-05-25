@@ -362,12 +362,10 @@ class FlatSmallHashtable {
         erased_(other.erased_),
         resize_threshold_(other.resize_threshold_),
         buffer_(other.buffer_),
-        states_(capacity_idx_ > 0 ? other.states_ : &dummy_empty_state_) {
-    other.capacity_idx_ = 0;
-    other.used_ = 0;
-    other.erased_ = 0;
-    other.buffer_ = nullptr;
-    other.states_ = &dummy_empty_state_;
+        states_(nullptr),
+        dummy_empty_state_(EMPTY) {
+    states_ = capacity_idx_ > 0 ? other.states_ : &dummy_empty_state_;
+    other.resetToEmptySentinel();
   }
 
   /// @brief Copy constructor.
@@ -409,18 +407,10 @@ class FlatSmallHashtable {
       used_ = other.used_;
       erased_ = other.erased_;
       resize_threshold_ = other.resize_threshold_;
-      if (capacity_idx_ > 0) {
-        buffer_ = other.buffer_;
-        states_ = other.states_;
-        other.capacity_idx_ = 0;
-        other.used_ = 0;
-        other.erased_ = 0;
-        other.buffer_ = nullptr;
-        other.states_ = &dummy_empty_state_;
-      } else {
-        buffer_ = nullptr;
-        states_ = &dummy_empty_state_;
-      }
+      buffer_ = other.buffer_;
+      dummy_empty_state_ = EMPTY;
+      states_ = capacity_idx_ > 0 ? other.states_ : &dummy_empty_state_;
+      other.resetToEmptySentinel();
     }
     return *this;
   }
@@ -814,6 +804,16 @@ class FlatSmallHashtable {
   }
 
  private:
+  void resetToEmptySentinel() {
+    capacity_idx_ = 0;
+    used_ = 0;
+    erased_ = 0;
+    resize_threshold_ = 0;
+    buffer_ = nullptr;
+    dummy_empty_state_ = EMPTY;
+    states_ = &dummy_empty_state_;
+  }
+
   using State = int8_t;
   static constexpr State EMPTY = 0;
   static constexpr State DELETED = 1;

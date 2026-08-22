@@ -15,7 +15,12 @@ cc_library(
         "src",
     ],
     visibility = ["//visibility:public"],
-    deps = ["@roo_backport"],
+    deps = ["@roo_backport"] + select({
+        "@roo_testing//roo_testing/platforms:is_arduino": [
+            "@roo_testing//:arduino",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_test(

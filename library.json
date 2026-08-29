@@ -13,7 +13,7 @@
         "type": "git",
         "url": "https://github.com/dejwk/roo_collections"
     },
-    "version": "1.4.5",
+    "version": "1.4.6",
     "homepage": "https://github.com/dejwk/roo_collections",
     "frameworks": [
         "Arduino",
@@ -24,6 +24,6 @@
         "srcFilter": "+<*> -<examples> -<test>"
     },
     "dependencies": {
-        "dejwk/roo_backport": ">=1.2.2"
+        "dejwk/roo_backport": ">=1.2.3"
     }
 }

@@ -1,3 +1,11 @@
+# roo_collections 1.4.7
+
+- Updated Bazel dependencies: `rules_cc` to 0.2.25 and `googletest` to 1.18.0.bcr.1.
+- Updated the shared `roo_testing` CI workflow to 2.1.2.
+- Added consolidated historical release notes in `RELEASE_NOTES.md`.
+
+---
+
 # [roo_collections 1.4.6](https://github.com/dejwk/roo_collections/releases/tag/1.4.6)
 
 Published 2026-08-29.

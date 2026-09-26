@@ -1,3 +1,12 @@
+# roo_collections 1.4.8
+
+- Upgrade the Bazel `roo_testing` dependency from 2.1.2 to 2.3.0.
+- Add a test helper that runs Arduino ESP32 and ESP-IDF ESP32 profiles sequentially.
+- Refresh contributor and agent guidance, and standardize pointer and reference formatting.
+- No changes to collection APIs or runtime behavior.
+
+---
+
 # roo_collections 1.4.7
 
 - Updated Bazel dependencies: `rules_cc` to 0.2.25 and `googletest` to 1.18.0.bcr.1.

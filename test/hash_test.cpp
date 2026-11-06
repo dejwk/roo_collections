@@ -5,6 +5,7 @@
 #include <string>
 
 #include "gtest/gtest.h"
+#include "roo_collections/flat_small_hashtable.h"
 
 namespace roo_collections {
 
@@ -76,6 +77,32 @@ TEST(Hash, Murmur3MatchesReferenceImplementation) {
           << "sample='" << sample << "' seed=" << seed;
     }
   }
+}
+
+// Verifies compile-time hashing agrees with the reference, including signed
+// characters, embedded NULs, full blocks, and every tail length.
+TEST(Hash, ConstexprHashesMatchRuntime) {
+  static constexpr char bytes[] = {'a', '\0', char(0x80), char(0xff),
+                                   'z', 'x',  'y'};
+  static constexpr uint32_t hashes[] = {
+      Murmur3_32(bytes, 0, 0x92F4E42B), Murmur3_32(bytes, 1, 0x92F4E42B),
+      Murmur3_32(bytes, 2, 0x92F4E42B), Murmur3_32(bytes, 3, 0x92F4E42B),
+      Murmur3_32(bytes, 4, 0x92F4E42B), Murmur3_32(bytes, 5, 0x92F4E42B),
+      Murmur3_32(bytes, 6, 0x92F4E42B), Murmur3_32(bytes, 7, 0x92F4E42B),
+  };
+  static_assert(Murmur3_32("", 0, 0) == 0, "empty hash");
+  static_assert(Murmur3_32("foo", 3, 0) == 0xf6a5c420, "known hash");
+  static_assert(TransparentStringHashFn()("foo") ==
+                    DefaultHashFn<::roo::string_view>()("foo"),
+                "transparent hash consistency");
+  static_assert(TransparentEq()(::roo::string_view("foo"), "foo"),
+                "constexpr string equality");
+  for (size_t len = 0; len <= sizeof(bytes); ++len) {
+    EXPECT_EQ(hashes[len], referenceMurmur3_32(bytes, len, 0x92F4E42B));
+    EXPECT_EQ(hashes[len], murmur3_32(bytes, len, 0x92F4E42B));
+  }
+  EXPECT_EQ(Murmur3_32(nullptr, 0, 0), 0u);
+  EXPECT_EQ(murmur3_32(nullptr, 0, 0), 0u);
 }
 
 }  // namespace roo_collections

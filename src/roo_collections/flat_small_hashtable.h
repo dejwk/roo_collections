@@ -94,8 +94,8 @@ struct DefaultHashFn : public std::hash<Key> {};
 
 template <>
 struct DefaultHashFn<::roo::string_view> {
-  inline size_t operator()(::roo::string_view val) const {
-    return murmur3_32(val.data(), val.size(), 0x92F4E42BUL);
+  constexpr size_t operator()(::roo::string_view val) const {
+    return Murmur3_32(val.data(), val.size(), 0x92F4E42BUL);
   }
 };
 
@@ -108,7 +108,7 @@ struct DefaultHashFn<std::string> {
 
 template <>
 struct DefaultHashFn<const char*> {
-  inline size_t operator()(const char* val) const {
+  constexpr size_t operator()(const char* val) const {
     return DefaultHashFn<::roo::string_view>()(::roo::string_view(val));
   }
 };
@@ -140,10 +140,10 @@ struct TransparentStringHashFn {
   inline size_t operator()(const std::string& val) const {
     return DefaultHashFn<std::string>()(val);
   }
-  inline size_t operator()(const char* val) const {
+  constexpr size_t operator()(const char* val) const {
     return DefaultHashFn<const char*>()(val);
   }
-  inline size_t operator()(::roo::string_view val) const {
+  constexpr size_t operator()(::roo::string_view val) const {
     return DefaultHashFn<::roo::string_view>()(val);
   }
   template <size_t N>
@@ -163,7 +163,7 @@ struct TransparentEq {
   using is_transparent = void;
 
   template <typename X, typename Y>
-  inline bool operator()(const X& x, const Y& y) const {
+  constexpr bool operator()(const X& x, const Y& y) const {
     return x == y;
   }
 };

@@ -15,6 +15,7 @@
 #include "roo_backport.h"
 #include "roo_backport/string_view.h"
 #include "roo_collections/hash.h"
+#include "roo_collections/impl/config.h"
 #include "roo_collections/impl/flat_small_hashtable_lookup.h"
 #include "roo_collections/small_string.h"
 
@@ -56,12 +57,12 @@ static constexpr uint64_t kRadkePrimeInverts[] = {
     0x800400201,     0x401506e65,    0x200c44b25,    0x100110122};
 
 // Returns n % kRadkePrimes[idx].
-constexpr uint16_t fastmod(uint32_t n, int idx) {
+ROO_COLLECTIONS_CONSTEXPR14 uint16_t fastmod(uint32_t n, int idx) {
   uint64_t lowbits = (kRadkePrimeInverts[idx] * n) & 0x0000FFFFFFFFFFFF;
   return (lowbits * kRadkePrimes[idx]) >> 48;
 }
 
-constexpr int initialCapacityIdx(uint16_t size_hint) {
+ROO_COLLECTIONS_CONSTEXPR14 int initialCapacityIdx(uint16_t size_hint) {
   uint32_t ht_len = (uint32_t)(((float)size_hint) / kMaxFillRatio) + 1;
   for (int radkeIdx = 0; radkeIdx < 15; ++radkeIdx) {
     if (kRadkePrimes[radkeIdx] >= ht_len) return radkeIdx;
@@ -95,7 +96,7 @@ struct DefaultHashFn : public std::hash<Key> {};
 
 template <>
 struct DefaultHashFn<::roo::string_view> {
-  constexpr size_t operator()(::roo::string_view val) const {
+  ROO_COLLECTIONS_CONSTEXPR14 size_t operator()(::roo::string_view val) const {
     return Murmur3_32(val.data(), val.size(), 0x92F4E42BUL);
   }
 };
@@ -109,7 +110,7 @@ struct DefaultHashFn<std::string> {
 
 template <>
 struct DefaultHashFn<const char*> {
-  constexpr size_t operator()(const char* val) const {
+  ROO_COLLECTIONS_CONSTEXPR14 size_t operator()(const char* val) const {
     return DefaultHashFn<::roo::string_view>()(::roo::string_view(val));
   }
 };
@@ -141,10 +142,10 @@ struct TransparentStringHashFn {
   inline size_t operator()(const std::string& val) const {
     return DefaultHashFn<std::string>()(val);
   }
-  constexpr size_t operator()(const char* val) const {
+  ROO_COLLECTIONS_CONSTEXPR14 size_t operator()(const char* val) const {
     return DefaultHashFn<const char*>()(val);
   }
-  constexpr size_t operator()(::roo::string_view val) const {
+  ROO_COLLECTIONS_CONSTEXPR14 size_t operator()(::roo::string_view val) const {
     return DefaultHashFn<::roo::string_view>()(val);
   }
   template <size_t N>
@@ -164,12 +165,14 @@ struct TransparentEq {
   using is_transparent = void;
 
   /// Compares string content directly, avoiding implicit Arduino String copies.
-  constexpr bool operator()(::roo::string_view x, const char* y) const {
+  ROO_COLLECTIONS_CONSTEXPR14 bool operator()(::roo::string_view x,
+                                              const char* y) const {
     return x == ::roo::string_view(y);
   }
 
   /// Compares C strings to views without implicit owning-string conversions.
-  constexpr bool operator()(const char* x, ::roo::string_view y) const {
+  ROO_COLLECTIONS_CONSTEXPR14 bool operator()(const char* x,
+                                              ::roo::string_view y) const {
     return ::roo::string_view(x) == y;
   }
 
@@ -179,12 +182,20 @@ struct TransparentEq {
   }
 };
 
-template <typename _Func, typename _SfinaeType, typename = std::void_t<>>
+namespace internal {
+
+// std::void_t is available only from C++17 onward.
+template <typename...>
+using VoidT = void;
+
+}  // namespace internal
+
+template <typename _Func, typename _SfinaeType, typename = void>
 struct has_is_transparent {};
 
 template <typename _Func, typename _SfinaeType>
 struct has_is_transparent<_Func, _SfinaeType,
-                          std::void_t<typename _Func::is_transparent>> {
+                          internal::VoidT<typename _Func::is_transparent>> {
   typedef void type;
 };
 
@@ -360,7 +371,7 @@ class FlatSmallHashtable {
                                   : nullptr),
         states_(capacity_idx_ > 0 ? new State[kRadkePrimes[capacity_idx_]]
                                   : &dummy_empty_state_) {
-    std::fill(&states_[0], &states_[kRadkePrimes[capacity_idx_]], EMPTY);
+    std::fill(&states_[0], &states_[kRadkePrimes[capacity_idx_]], State(EMPTY));
   }
 
   /// @brief Move constructor.
@@ -618,7 +629,7 @@ class FlatSmallHashtable {
   /// @brief Removes all entries while preserving current allocated capacity.
   void clear() {
     if (used_ == 0 && erased_ == 0) return;
-    std::fill(&states_[0], &states_[kRadkePrimes[capacity_idx_]], EMPTY);
+    std::fill(&states_[0], &states_[kRadkePrimes[capacity_idx_]], State(EMPTY));
     for (size_t i = 0; i < kRadkePrimes[capacity_idx_]; ++i) {
       buffer_[i] = Entry();
     }

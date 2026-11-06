@@ -5,6 +5,8 @@
 /// evaluation.
 /// @ingroup roo_collections
 
+#if __cplusplus >= 201703L
+
 #include <array>
 #include <cstdlib>
 #include <type_traits>
@@ -307,3 +309,10 @@ constexpr auto MakeImmutableFlatSmallHashtable(
 }
 
 }  // namespace roo_collections
+
+#else
+
+#warning \
+    "roo_collections: ImmutableFlatSmallHashtable requires C++17 or later; declarations disabled"
+
+#endif  // __cplusplus >= 201703L

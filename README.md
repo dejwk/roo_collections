@@ -13,6 +13,11 @@ which can be used to store small fixed-size strings inline (without using heap).
 
 ## Immutable tables in flash
 
+Immutable headers expose their types and factories only with C++17 or later.
+Including one in C++11/14 emits a compiler warning and skips its declarations;
+mutable containers remain available. Guard uses of immutable APIs with
+`#if __cplusplus >= 201703L` when supporting older language standards.
+
 With C++17, `ImmutableFlatSmallHashtable<Entry, Key, N>` stores entries and
 occupancy bytes inline and supports constant evaluation. It exposes const-only
 lookup and iteration, with no table-owned heap allocation, resizing, or runtime

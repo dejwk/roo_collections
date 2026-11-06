@@ -150,3 +150,36 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "cpp11_compatibility_test",
+    size = "small",
+    srcs = ["test/language_version_compile_test.cpp"],
+    copts = [
+        "-std=c++11",
+        "-DROO_COLLECTIONS_TEST_CXX=201103L",
+    ],
+    deps = [":roo_collections"],
+)
+
+cc_test(
+    name = "cpp14_compatibility_test",
+    size = "small",
+    srcs = ["test/language_version_compile_test.cpp"],
+    copts = [
+        "-std=c++14",
+        "-DROO_COLLECTIONS_TEST_CXX=201402L",
+    ],
+    deps = [":roo_collections"],
+)
+
+cc_test(
+    name = "cpp17_compatibility_test",
+    size = "small",
+    srcs = ["test/language_version_compile_test.cpp"],
+    copts = [
+        "-std=c++17",
+        "-DROO_COLLECTIONS_TEST_CXX=201703L",
+    ],
+    deps = [":roo_collections"],
+)

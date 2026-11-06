@@ -4,6 +4,8 @@
 /// @brief Immutable flat sets with inline storage and constexpr construction.
 /// @ingroup roo_collections
 
+#if __cplusplus >= 201703L
+
 #include "roo_collections/immutable_flat_small_hashtable.h"
 
 namespace roo_collections {
@@ -71,3 +73,10 @@ constexpr auto MakeImmutableFlatSmallStringHashSet(
 }
 
 }  // namespace roo_collections
+
+#else
+
+#warning \
+    "roo_collections: ImmutableFlatSmallHashSet requires C++17 or later; declarations disabled"
+
+#endif  // __cplusplus >= 201703L

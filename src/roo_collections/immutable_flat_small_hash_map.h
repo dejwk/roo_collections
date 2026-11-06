@@ -4,6 +4,8 @@
 /// @brief Immutable flat maps with inline storage and constexpr construction.
 /// @ingroup roo_collections
 
+#if __cplusplus >= 201703L
+
 #include "roo_collections/flat_small_hash_map.h"
 #include "roo_collections/immutable_flat_small_hashtable.h"
 
@@ -133,3 +135,10 @@ constexpr auto MakeImmutableFlatSmallStringHashMap(
 }
 
 }  // namespace roo_collections
+
+#else
+
+#warning \
+    "roo_collections: ImmutableFlatSmallHashMap requires C++17 or later; declarations disabled"
+
+#endif  // __cplusplus >= 201703L

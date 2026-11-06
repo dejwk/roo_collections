@@ -61,6 +61,22 @@ types. `ImmutableFlatSmallStringHashMap<Value, N>` is the explicit string-view
 map type; it accepts string literals, `roo::string_view`, `std::string`,
 `SmallString`, and Arduino `String` (when available) as lookup keys.
 
+`ImmutableFlatSmallHashSet<Key, N>` exposes the same read-only membership and
+iteration API as the hashtable. Its string-specialized alias is
+`ImmutableFlatSmallStringHashSet<N>`:
+
+```cpp
+#include "roo_collections/immutable_flat_small_hash_set.h"
+
+static constexpr auto kAllowed =
+    roo_collections::MakeImmutableFlatSmallHashSet<int>({1, 2, 3});
+static constexpr auto kNames =
+    roo_collections::MakeImmutableFlatSmallStringHashSet({"start", "stop"});
+
+static_assert(kAllowed.contains(2));
+static_assert(kNames.contains("stop"));
+```
+
 The factory deduces the count from an array reference. `std::array` inputs are
 also accepted, including `std::array<Entry, 0>{}` for an empty table. The entry
 count is part of the type, and `capacity()` reports that fixed count; `ht_len()`

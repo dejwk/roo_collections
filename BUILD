@@ -140,3 +140,13 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "immutable_flat_small_hash_set_test",
+    size = "small",
+    srcs = ["test/immutable_flat_small_hash_set_test.cpp"],
+    deps = [
+        ":roo_collections",
+        "@googletest//:gtest_main",
+    ],
+)

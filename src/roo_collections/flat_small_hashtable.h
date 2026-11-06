@@ -163,6 +163,16 @@ struct TransparentEq {
   // Required to denote a transparent comparator.
   using is_transparent = void;
 
+  /// Compares string content directly, avoiding implicit Arduino String copies.
+  constexpr bool operator()(::roo::string_view x, const char* y) const {
+    return x == ::roo::string_view(y);
+  }
+
+  /// Compares C strings to views without implicit owning-string conversions.
+  constexpr bool operator()(const char* x, ::roo::string_view y) const {
+    return ::roo::string_view(x) == y;
+  }
+
   template <typename X, typename Y>
   constexpr bool operator()(const X& x, const Y& y) const {
     return x == y;

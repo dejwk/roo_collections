@@ -97,6 +97,14 @@ TEST(Hash, ConstexprHashesMatchRuntime) {
                 "transparent hash consistency");
   static_assert(TransparentEq()(::roo::string_view("foo"), "foo"),
                 "constexpr string equality");
+  static_assert(TransparentEq()("foo", ::roo::string_view("foo")),
+                "constexpr reversed string equality");
+  constexpr const char* literal = "foo";
+  static_assert(TransparentEq()(::roo::string_view("foo"), literal),
+                "constexpr C string equality");
+  char buffer[] = "foo";
+  EXPECT_TRUE(TransparentEq()(::roo::string_view("foo"), buffer));
+  EXPECT_TRUE(TransparentEq()(buffer, ::roo::string_view("foo")));
   for (size_t len = 0; len <= sizeof(bytes); ++len) {
     EXPECT_EQ(hashes[len], referenceMurmur3_32(bytes, len, 0x92F4E42B));
     EXPECT_EQ(hashes[len], murmur3_32(bytes, len, 0x92F4E42B));

@@ -11,6 +11,53 @@ These collections play nicely with strings. You can use strings as both keys and
 than the storage key, e.g. if you use `std::string` keys but use `const char*` or `roo::string_view` for the lookup, no dynamic allocation is done; the internal comparator functions work with heterogeneous types. Additionally, the library contains a templated SmallString implementation
 which can be used to store small fixed-size strings inline (without using heap).
 
+## Immutable tables in flash
+
+With C++17, `ImmutableFlatSmallHashtable<Entry, Key, N>` stores entries and
+occupancy bytes inline and supports constant evaluation. It exposes const-only
+lookup and iteration, with no table-owned heap allocation, resizing, or runtime
+initialization for a `static constexpr` instance. Actual flash placement depends on the target
+linker; memory-mapped flash platforms such as ESP32 can read it directly.
+
+```cpp
+#include "roo_collections/immutable_flat_small_hashtable.h"
+
+struct Setting {
+  int id;
+  int value;
+};
+
+struct SettingKey {
+  constexpr const int& operator()(const Setting& entry) const {
+    return entry.id;
+  }
+};
+
+static constexpr auto kSettings =
+    roo_collections::MakeImmutableFlatSmallHashtable<Setting, int>(
+        {{1, 100}, {2, 200}}, roo_collections::ImmutableHashFn<int>{},
+        SettingKey{});
+
+static_assert(kSettings.find(2)->value == 200);
+```
+
+The factory deduces the count from an array reference. `std::array` inputs are
+also accepted, including `std::array<Entry, 0>{}` for an empty table. The entry
+count is part of the type, and `capacity()` reports that fixed count; `ht_len()`
+reports the bucket count. At most 64000 entries are supported.
+
+Duplicate keys are rejected: constexpr construction fails to compile, and
+runtime construction aborts, including with `NDEBUG`. Entries must be default
+constructible and copy assignable; entry types can still allocate internally.
+For constant evaluation, their operations, the key extractor, hash and equality
+functions must all be constexpr.
+`ImmutableHashFn` provides constexpr hashing for integral/enum keys and
+`roo::string_view`; other keys can supply their own hash. Hash and equality must
+agree, and hashes must be identical during construction and runtime lookup.
+String views and other borrowed data must outlive the table; string literals
+are suitable. The pre-C++17 backported string view is not supported for
+constexpr construction.
+
 ## Why use `roo_collections`? (vs. Alternatives)
 
 When developing for memory-constrained embedded systems like the ESP32, developers typically choose between standard node-based maps (which cause heap fragmentation), static ordered arrays like `etl::flat_map`, or third-party flat hash maps.

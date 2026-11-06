@@ -15,6 +15,7 @@
 #include "roo_backport.h"
 #include "roo_backport/string_view.h"
 #include "roo_collections/hash.h"
+#include "roo_collections/impl/flat_small_hashtable_lookup.h"
 #include "roo_collections/small_string.h"
 
 #ifdef ARDUINO
@@ -184,7 +185,7 @@ using has_is_transparent_t =
 // For maps, where Key == Entry.
 template <typename Entry>
 struct DefaultKeyFn {
-  const Entry& operator()(const Entry& entry) const { return entry; }
+  constexpr const Entry& operator()(const Entry& entry) const { return entry; }
 };
 
 /// @brief Flat, memory-conscious hash table optimized for small collections.
@@ -500,28 +501,11 @@ class FlatSmallHashtable {
   /// @brief Finds `key` and returns a const iterator to the matching entry.
   /// @return `end()` when not found.
   ConstIterator find(const Key& key) const {
-    size_t hash = hash_fn_(key);
-    const uint16_t pos = fastmod(hash, capacity_idx_);
-    if (states_[pos] == EMPTY) return end();
-    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
-        key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
-      return ConstIterator(this, pos);
-    }
-    const uint16_t cap = ht_len();
-    uint32_t p = pos;
-    p += (cap - 2);
-    int32_t j = 2 - cap;
-    while (true) {
-      if (p >= cap) p -= cap;
-      if (states_[p] == EMPTY) return end();
-      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
-          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
-        return ConstIterator(this, p);
-      }
-      j += 2;
-      assert(j < cap);
-      p += (j >= 0 ? j : -j);
-    }
+    uint32_t hash = hash_fn_(key);
+    uint16_t pos = internal::FindFlatSmallBucket(
+        buffer_, states_, ht_len(), fastmod(hash, capacity_idx_), hash, key,
+        key_fn_, key_cmp_fn_);
+    return ConstIterator(this, pos);
   }
 
   /// @brief Heterogeneous lookup overload of `find`.
@@ -529,28 +513,11 @@ class FlatSmallHashtable {
   template <typename K, typename = has_is_transparent_t<HashFn, K>,
             typename = has_is_transparent_t<KeyCmpFn, K>>
   ConstIterator find(const K& key) const {
-    size_t hash = hash_fn_(key);
-    const uint16_t pos = fastmod(hash, capacity_idx_);
-    if (states_[pos] == EMPTY) return end();
-    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
-        key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
-      return ConstIterator(this, pos);
-    }
-    const uint16_t cap = ht_len();
-    uint32_t p = pos;
-    p += (cap - 2);
-    int32_t j = 2 - cap;
-    while (true) {
-      if (p >= cap) p -= cap;
-      if (states_[p] == EMPTY) return end();
-      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
-          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
-        return ConstIterator(this, p);
-      }
-      j += 2;
-      assert(j < cap);
-      p += (j >= 0 ? j : -j);
-    }
+    uint32_t hash = hash_fn_(key);
+    uint16_t pos = internal::FindFlatSmallBucket(
+        buffer_, states_, ht_len(), fastmod(hash, capacity_idx_), hash, key,
+        key_fn_, key_cmp_fn_);
+    return ConstIterator(this, pos);
   }
 
   /// @brief Removes an entry by key.

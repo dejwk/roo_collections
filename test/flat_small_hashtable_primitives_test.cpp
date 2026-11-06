@@ -1,3 +1,5 @@
+#include <vector>
+
 #include "gtest/gtest.h"
 #include "roo_collections/flat_small_hashtable.h"
 
@@ -24,6 +26,22 @@ TEST(FlatSmallHashtablePrimitives, FastmodMatchesModulo) {
     for (int sample = 0; sample < 1000; ++sample) {
       n = n * 1664525u + 1013904223u;
       EXPECT_EQ(fastmod(n, idx), n % prime) << "capacity=" << prime;
+    }
+  }
+}
+
+// Verifies the shared quadratic probe visits every bucket exactly once at
+// every supported capacity, including wraparound from the last bucket.
+TEST(FlatSmallHashtablePrimitives, ProbeVisitsEveryBucket) {
+  for (uint16_t capacity : kRadkePrimes) {
+    std::vector<bool> visited(capacity, false);
+    internal::FlatSmallHashtableProbe probe(capacity - 1, capacity);
+    for (uint32_t i = 0; i < capacity; ++i) {
+      uint16_t pos = probe.position();
+      ASSERT_LT(pos, capacity);
+      ASSERT_FALSE(visited[pos]) << "capacity=" << capacity;
+      visited[pos] = true;
+      if (i + 1 < capacity) probe.advance();
     }
   }
 }

@@ -110,3 +110,13 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "flat_small_hashtable_primitives_test",
+    size = "small",
+    srcs = ["test/flat_small_hashtable_primitives_test.cpp"],
+    deps = [
+        ":roo_collections",
+        "@googletest//:gtest_main",
+    ],
+)

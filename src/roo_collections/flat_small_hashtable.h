@@ -49,18 +49,18 @@ static constexpr uint16_t kRadkePrimes[] = {
 // See
 // https://lemire.me/blog/2019/02/08/faster-remainders-when-the-divisor-is-a-constant-beating-compilers-and-libdivide/
 static constexpr uint64_t kRadkePrimeInverts[] = {
-    0x281474976700001, 0xD5C26DD2255556, 0x5B9C78357DB6DC, 0x1745d1745d18,
-    0x84210842109,     0x456c797dd4a,    0x20408102041,    0x105197f7d74,
-    0x824a4e60b4,      0x4050647d9e,     0x202428adc4,     0x100501907e,
-    0x800400201,       0x401506e65,      0x200c44b25,      0x100110122};
+    0x1000000000000, 0x555555555556, 0x24924924924a, 0x1745d1745d18,
+    0x84210842109,   0x456c797dd4a,  0x20408102041,  0x105197f7d74,
+    0x824a4e60b4,    0x4050647d9e,   0x202428adc4,   0x100501907e,
+    0x800400201,     0x401506e65,    0x200c44b25,    0x100110122};
 
 // Returns n % kRadkePrimes[idx].
-inline uint16_t fastmod(uint32_t n, int idx) {
+constexpr uint16_t fastmod(uint32_t n, int idx) {
   uint64_t lowbits = (kRadkePrimeInverts[idx] * n) & 0x0000FFFFFFFFFFFF;
   return (lowbits * kRadkePrimes[idx]) >> 48;
 }
 
-inline int initialCapacityIdx(uint16_t size_hint) {
+constexpr int initialCapacityIdx(uint16_t size_hint) {
   uint32_t ht_len = (uint32_t)(((float)size_hint) / kMaxFillRatio) + 1;
   for (int radkeIdx = 0; radkeIdx < 15; ++radkeIdx) {
     if (kRadkePrimes[radkeIdx] >= ht_len) return radkeIdx;

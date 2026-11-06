@@ -12,7 +12,7 @@ namespace roo_collections {
 
 template <typename Key, typename Value>
 struct MapKeyFn {
-  const Key& operator()(const std::pair<Key, Value>& entry) const {
+  constexpr const Key& operator()(const std::pair<Key, Value>& entry) const {
     return entry.first;
   }
 };

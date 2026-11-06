@@ -16,8 +16,8 @@ which can be used to store small fixed-size strings inline (without using heap).
 With C++17, `ImmutableFlatSmallHashtable<Entry, Key, N>` stores entries and
 occupancy bytes inline and supports constant evaluation. It exposes const-only
 lookup and iteration, with no table-owned heap allocation, resizing, or runtime
-initialization for a `static constexpr` instance. Actual flash placement depends on the target
-linker; memory-mapped flash platforms such as ESP32 can read it directly.
+initialization for a `static constexpr` instance. Actual flash placement depends
+on the target linker; memory-mapped flash platforms such as ESP32 can read it directly.
 
 ```cpp
 #include "roo_collections/immutable_flat_small_hashtable.h"
@@ -40,6 +40,26 @@ static constexpr auto kSettings =
 
 static_assert(kSettings.find(2)->value == 200);
 ```
+
+For maps, `ImmutableFlatSmallHashMap<Key, Value, N>` adds `at()` and a read-only
+`operator[]`; both require an existing key and never insert. String-specialized
+maps store `roo::string_view` keys and support heterogeneous lookup:
+
+```cpp
+#include "roo_collections/immutable_flat_small_hash_map.h"
+
+static constexpr auto kCommands =
+    roo_collections::MakeImmutableFlatSmallStringHashMap<int>(
+        {{"start", 1}, {"stop", 2}, {"reset", 3}});
+
+static_assert(kCommands.at("stop") == 2);
+static_assert(kCommands["reset"] == 3);
+```
+
+`MakeImmutableFlatSmallHashMap<Key, Value>(pairs)` builds a map for general key
+types. `ImmutableFlatSmallStringHashMap<Value, N>` is the explicit string-view
+map type; it accepts string literals, `roo::string_view`, `std::string`,
+`SmallString`, and Arduino `String` (when available) as lookup keys.
 
 The factory deduces the count from an array reference. `std::array` inputs are
 also accepted, including `std::array<Entry, 0>{}` for an empty table. The entry

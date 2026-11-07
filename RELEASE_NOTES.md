@@ -1,3 +1,11 @@
+# roo_collections 1.4.9
+
+- Upgrade the Bazel `roo_testing` dependency from 2.3.0 to 2.5.0.
+- Add emulator test profiles for ESP32-S3 and ESP32-C3 with Arduino and ESP-IDF, plus RP2040 with Pico SDK, Arduino, and Arduino FreeRTOS.
+- Expand `test_all_profiles` to run all nine supported profiles sequentially, and update the Bazel launcher to recognize Pico profiles.
+
+---
+
 # roo_collections 1.4.8
 
 - Upgrade the Bazel `roo_testing` dependency from 2.1.2 to 2.3.0.

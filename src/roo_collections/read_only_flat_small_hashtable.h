@@ -146,7 +146,8 @@ class ReadOnlyFlatSmallHashtable
   /// @brief Returns whether the table is empty.
   constexpr bool empty() const { return used_ == erased_; }
 
-  /// @brief Returns the number of elements insertable before rehashing.
+  /// @brief Returns the live-entry limit before growth.
+  /// Erased buckets can trigger cleanup before this limit is reached.
   constexpr uint16_t capacity() const { return resize_threshold_; }
 
   /// @brief Finds `key` and returns a const iterator to the matching entry.

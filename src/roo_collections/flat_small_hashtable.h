@@ -372,73 +372,37 @@ class FlatSmallHashtable
     Key key = key_fn_(val);
     size_t hash = hash_fn_(key);
     uint16_t pos = capacity_info_->reduceHash(hash);
-    // Fast path.
+    if (states_[pos] == EMPTY && used_ < resize_threshold_) {
+      return insertAt(pos, val, hash);
+    }
     if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       return std::make_pair(Iterator(this, pos), false);
     }
-    if (used_ >= resize_threshold_) {
-      if (empty() && erased_ > 0) {
-        // Clearing is faster than rehashing.
-        clear();
-      } else {
-        // Before rehashing see if maybe the entry is already in the hashtable.
-        Iterator itr = lookup(key);
-        if (itr != end()) {
-          return std::make_pair(itr, false);
-        }
-        // Need to rehash.
-        FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn> newt(
-            size() + 1, hash_fn_, key_fn_, key_cmp_fn_);
-        // Check if we didn't exceed the maximum hashtable size.
-        assert(newt.capacity() >= size() + 1);
-        for (auto& e : *this) {
-          newt.insert(std::move(e));
-        }
-        if (newt.capacity() == capacity()) {
-          // In this case, prefer to reuse the old storage, and release the new
-          // storage, because doing otherwise thrashes the heap. (Experimentally
-          // observed on ESP32).
-          used_ = newt.used_;
-          erased_ = 0;
-          memcpy(states_, newt.states_, ht_len() * sizeof(State));
-          for (size_t i = 0; i < ht_len(); ++i) {
-            buffer_[i] = std::move(newt.buffer_[i]);
-          }
-        } else {
-          *this = std::move(newt);
-        }
-      }
-      pos = capacity_info_->reduceHash(hash);
-    }
-    // Fast path for not found.
-    if (states_[pos] == EMPTY) {
-      states_[pos] = (hash & 0x7F) | 0x80;
-      buffer_[pos] = std::move(val);
-      ++used_;
-      return std::make_pair(Iterator(this, pos), true);
-    }
+
     const uint16_t cap = ht_len();
-    uint32_t p = pos;
-    p += (cap - 2);
-    int32_t j = 2 - cap;
-    while (true) {
-      if (p >= cap) p -= cap;
-      if (states_[p] == EMPTY) {
-        // We can insert here.
-        states_[p] = (hash & 0x7F) | 0x80;
-        buffer_[p] = std::move(val);
-        ++used_;
-        return std::make_pair(Iterator(this, p), true);
+    uint16_t deleted = cap;
+    internal::FlatSmallHashtableProbe probe(pos, cap);
+    for (uint32_t visited = 0; visited < cap; ++visited) {
+      pos = probe.position();
+      if (states_[pos] == EMPTY) break;
+      if (states_[pos] == DELETED) {
+        if (deleted == cap) deleted = pos;
+      } else if ((states_[pos] & 0x7F) == (hash & 0x7F) &&
+                 key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
+        return std::make_pair(Iterator(this, pos), false);
       }
-      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
-          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
-        return std::make_pair(Iterator(this, p), false);
-      }
-      j += 2;
-      assert(j < cap);
-      p += (j >= 0 ? j : -j);
+      if (visited + 1 < cap) probe.advance();
     }
+    // Probe through tombstones before reusing one: an equal key may follow it.
+    if (deleted != cap) pos = deleted;
+    assert(states_[pos] == EMPTY || states_[pos] == DELETED);
+    if (size() >= resize_threshold_ ||
+        (states_[pos] == EMPTY && used_ >= tombstoneLimit())) {
+      rebuildForInsert();
+      return insert(std::move(val));
+    }
+    return insertAt(pos, val, hash);
   }
 
  protected:
@@ -495,6 +459,49 @@ class FlatSmallHashtable
   }
 
  private:
+  /// Places an absent key, distinguishing a recycled tombstone from new use.
+  std::pair<Iterator, bool> insertAt(uint16_t pos, Entry& val, uint32_t hash) {
+    bool recycled = states_[pos] == DELETED;
+    buffer_[pos] = std::move(val);
+    states_[pos] = (hash & 0x7F) | 0x80;
+    if (recycled) {
+      --erased_;
+    } else {
+      ++used_;
+    }
+    return std::make_pair(Iterator(this, pos), true);
+  }
+
+  /// Lets tombstones occupy about half the spare buckets before compaction.
+  /// Retaining an empty bucket guarantees that absent-key lookup terminates.
+  uint16_t tombstoneLimit() const {
+    uint32_t cap = ht_len();
+    return std::min<uint32_t>(cap - 1, (resize_threshold_ + cap + 1) / 2);
+  }
+
+  /// Grows for live entries or reclaims tombstones using the existing sizing
+  /// policy.
+  void rebuildForInsert() {
+    if (empty() && erased_ > 0) {
+      clear();
+      return;
+    }
+    FlatSmallHashtable newt(size() + 1, hash_fn_, key_fn_, key_cmp_fn_);
+    assert(newt.capacity() >= size() + 1);
+    for (auto& entry : *this) newt.insert(std::move(entry));
+    if (newt.capacity() == capacity()) {
+      // Keep the original arrays to avoid allocator churn when only cleaning.
+      used_ = newt.used_;
+      erased_ = 0;
+      memcpy(states_, newt.states_, ht_len() * sizeof(State));
+      for (size_t i = 0; i < ht_len(); ++i) {
+        buffer_[i] = std::move(newt.buffer_[i]);
+      }
+    } else {
+      *this = std::move(newt);
+    }
+  }
+
   void resetToEmptySentinel() {
     capacity_info_ = &impl::kMutableFlatSmallHashtableCapacities[0];
     used_ = 0;

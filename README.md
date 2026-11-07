@@ -30,6 +30,14 @@ Mixing makes lookup less sensitive to structured missing-key ranges, at the
 cost of hash computation and potentially more probes for previously
 collision-free keys. It does not guarantee faster lookups for every workload.
 
+## Erased bucket reuse
+
+Insertion reuses erased buckets after checking the probe chain for duplicates.
+The live-entry limit controls growth; a separate occupancy limit allows
+roughly half the remaining buckets to hold tombstones before cleanup. At
+least one bucket stays empty so unsuccessful lookups terminate. Repeatedly
+erasing and reinserting the same keys therefore requires no table rebuilds.
+
 ## Common read-only interfaces
 
 `ReadOnlyFlatSmallHashtable`, `ReadOnlyFlatSmallHashMap` and

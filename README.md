@@ -58,10 +58,11 @@ object. Destroy concrete owners, never base pointers; base construction,
 assignment and destruction are protected to prevent slicing and ownership loss.
 
 Lookup reads the existing arrays and policies directly, without storage
-callbacks or virtual calls. Mutable owners reuse their original header fields.
-Immutable owners gain that header, with pointers rebound to their own inline
-arrays on construction, copy, move and assignment. Concrete immutable lookup
-retains its compile-time-capacity implementation.
+callbacks or virtual calls. Each header points to constant metadata containing
+the bucket count and modulo reciprocal. This replaces the old capacity index
+without enlarging the header on 32-bit targets. Immutable owners bind storage
+pointers to their own inline arrays on construction, copy, move and assignment.
+Concrete immutable lookup retains its compile-time-capacity implementation.
 
 The default `ImmutableHashFn` is an alias of `DefaultHashFn`, so default-policy
 owners with matching key/value types share exactly the same base type. Stored
@@ -167,7 +168,17 @@ specialization without requiring an explicit entry count.
 The helpers deduce the count from an array reference. `std::array` inputs are
 also accepted, including `std::array<Entry, 0>{}` for an empty table. The entry
 count is part of the type, and `capacity()` reports that fixed count; `ht_len()`
-reports the bucket count. At most 64000 entries are supported.
+reports the bucket count. Immutable owners compute the smallest prime congruent
+to 3 modulo 4 that provides at most 73% occupancy, using integer arithmetic and
+compile-time prime search. For example, 100 entries use 139 buckets rather than
+the 251 buckets selected by the mutable growth sequence. The bucket count and
+modulo reciprocal are constants; lookup performs no prime search or division,
+and immutable-only code needs no stored list of candidate primes.
+
+Empty tables retain their one-slot sentinel. Above 47828 entries, immutable
+owners deliberately preserve the existing higher-occupancy exception: they use
+65519 buckets and continue to support at most 64000 entries. Mutable tables keep
+their existing growth sizes and occupancy thresholds.
 
 Duplicate keys are rejected: constexpr construction fails to compile, and
 runtime construction aborts, including with `NDEBUG`. Entries must be default

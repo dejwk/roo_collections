@@ -208,6 +208,41 @@ TEST(ReadOnlyFlatSmallHashtable, SetInterface) {
             static_cast<const NumberSet&>(kEmpty).end());
 }
 
+// Verifies maps and sets use dense immutable buckets while mutable tables keep
+// their growth sequence, with correct common lookup, copying and iteration.
+TEST(ReadOnlyFlatSmallHashtable, DenseImmutableMapsAndSets) {
+  static constexpr ImmutableFlatSmallHashMap map(
+      WithMapping<int, int>({{1, 10},
+                             {2, 20},
+                             {3, 30},
+                             {4, 40},
+                             {5, 50},
+                             {6, 60},
+                             {7, 70},
+                             {8, 80},
+                             {9, 90}}));
+  static constexpr ImmutableFlatSmallHashtable set(
+      WithElements<int>({1, 2, 3, 4, 5, 6, 7, 8, 9}));
+  static constexpr const NumberMap& map_base = map;
+  static constexpr const NumberSet& set_base = set;
+  static_assert(map.ht_len() == 19 && set.ht_len() == 19, "dense prime");
+  static_assert(map_base.at(9) == 90 && set_base.contains(9), "base lookup");
+  static_assert(!map_base.contains(10) && !set_base.contains(10), "base miss");
+  FlatSmallHashMap<int, int> dynamic(9);
+  EXPECT_EQ(dynamic.ht_len(), 31);
+  EXPECT_EQ(map_base.ht_len(), 19);
+  auto copy = map;
+  auto moved = std::move(copy);
+  const NumberMap& moved_base = moved;
+  for (const auto& entry : map_base) {
+    dynamic[entry.first] = entry.second;
+    EXPECT_EQ(moved_base.at(entry.first), entry.second);
+    EXPECT_TRUE(set_base.contains(entry.first));
+  }
+  EXPECT_EQ(static_cast<const NumberMap&>(dynamic), map_base);
+  EXPECT_EQ(std::distance(set_base.begin(), set_base.end()), 9);
+}
+
 struct Record {
   int id;
   int value;

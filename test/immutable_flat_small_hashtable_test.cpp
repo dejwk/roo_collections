@@ -108,6 +108,30 @@ TEST(ImmutableFlatSmallHashtable, EqualityIgnoresInsertionOrder) {
   EXPECT_NE(changed, kRecords);
 }
 
+/// Creates distinct keys for checking dense compile-time storage selection.
+constexpr std::array<int, 100> MakeHundredKeys() {
+  std::array<int, 100> entries{};
+  for (int key = 0; key < 100; ++key) entries[key] = key;
+  return entries;
+}
+
+// Verifies immutable sizing uses the smallest qualifying prime, with the same
+// bucket count and hash reduction through the common read-only interface.
+TEST(ImmutableFlatSmallHashtable, DenseCompileTimeCapacity) {
+  static constexpr ImmutableFlatSmallHashtable table(
+      WithEntries(MakeHundredKeys()));
+  static constexpr const ReadOnlyFlatSmallHashtable<int, int>& base = table;
+  static_assert(table.ht_len() == 139, "dense compile-time capacity");
+  static_assert(base.ht_len() == 139 && base.contains(99), "dense base lookup");
+  static_assert(!base.contains(100), "dense base miss");
+  EXPECT_EQ(table.capacity(), 100);
+  for (int key = 0; key < 100; ++key) {
+    EXPECT_TRUE(table.contains(key));
+    EXPECT_TRUE(base.contains(key));
+  }
+  EXPECT_FALSE(base.contains(100));
+}
+
 // Verifies the largest supported table does not truncate its count or bucket
 // indexes and misses terminate at the high end of the key range.
 TEST(ImmutableFlatSmallHashtable, MaximumSize) {
@@ -116,6 +140,9 @@ TEST(ImmutableFlatSmallHashtable, MaximumSize) {
   auto table = MakeImmutableFlatSmallHashtable(entries);
   EXPECT_EQ(table.size(), 64000);
   EXPECT_EQ(table.ht_len(), 65519);
+  const ReadOnlyFlatSmallHashtable<int, int>& base = table;
+  EXPECT_TRUE(base.contains(63999));
+  EXPECT_FALSE(base.contains(64000));
   EXPECT_TRUE(table.contains(0));
   EXPECT_TRUE(table.contains(63999));
   EXPECT_FALSE(table.contains(64000));

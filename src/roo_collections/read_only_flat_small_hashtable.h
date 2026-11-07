@@ -123,7 +123,7 @@ class ReadOnlyFlatSmallHashtable
   }
 
   /// @brief Returns the internal bucket array length.
-  constexpr uint16_t ht_len() const { return kRadkePrimes[capacity_idx_]; }
+  constexpr uint16_t ht_len() const { return capacity_info_->slot_count; }
 
   /// @brief Returns an iterator to the first element.
   ROO_COLLECTIONS_CONSTEXPR14 ConstIterator begin() const {
@@ -154,7 +154,7 @@ class ReadOnlyFlatSmallHashtable
   ROO_COLLECTIONS_CONSTEXPR14 ConstIterator find(const Key& key) const {
     uint32_t hash = hash_fn_(key);
     uint16_t pos = internal::FindFlatSmallBucket(
-        buffer_, states_, ht_len(), fastmod(hash, capacity_idx_), hash, key,
+        buffer_, states_, ht_len(), capacity_info_->reduceHash(hash), hash, key,
         key_fn_, key_cmp_fn_);
     return ConstIterator(this, pos);
   }
@@ -166,7 +166,7 @@ class ReadOnlyFlatSmallHashtable
   ROO_COLLECTIONS_CONSTEXPR14 ConstIterator find(const K& key) const {
     uint32_t hash = hash_fn_(key);
     uint16_t pos = internal::FindFlatSmallBucket(
-        buffer_, states_, ht_len(), fastmod(hash, capacity_idx_), hash, key,
+        buffer_, states_, ht_len(), capacity_info_->reduceHash(hash), hash, key,
         key_fn_, key_cmp_fn_);
     return ConstIterator(this, pos);
   }
@@ -215,12 +215,13 @@ class ReadOnlyFlatSmallHashtable
 
   ~ReadOnlyFlatSmallHashtable() = default;
 
-  // Keep the original mutable-table field order and a single copy of storage
-  // pointers/counters. Only owners may mutate them; public access is const.
+  // Share immutable capacity metadata and a single copy of storage pointers
+  // and counters. The descriptor pointer replaces the old capacity index,
+  // preserving the header size on 32-bit targets. Public access is const.
   HashFn hash_fn_;
   KeyFn key_fn_;
   KeyCmpFn key_cmp_fn_;
-  int capacity_idx_ = 0;
+  const impl::FlatSmallHashtableCapacity* capacity_info_ = nullptr;
   uint16_t used_ = 0;
   uint16_t erased_ = 0;
   uint16_t resize_threshold_ = 0;

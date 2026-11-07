@@ -70,6 +70,50 @@ ROO_COLLECTIONS_CONSTEXPR14 int initialCapacityIdx(uint16_t size_hint) {
   return 15;
 }
 
+namespace impl {
+
+/// Shares a bucket count and its precomputed reducer with read-only clients.
+/// Owners keep only a pointer to this immutable descriptor. The bucket count
+/// must be nonzero; one denotes the empty-table sentinel.
+struct FlatSmallHashtableCapacity {
+  /// Precomputes the 48-bit reciprocal for @p slots.
+  constexpr explicit FlatSmallHashtableCapacity(uint16_t slots)
+      : reciprocal(((uint64_t{1} << 48) - 1) / slots + 1), slot_count(slots) {}
+
+  /// Reduces a 32-bit hash without division, including the one-slot sentinel.
+  ROO_COLLECTIONS_CONSTEXPR14 uint16_t reduceHash(uint32_t hash) const {
+    uint64_t lowbits = (reciprocal * hash) & 0x0000FFFFFFFFFFFF;
+    return (lowbits * slot_count) >> 48;
+  }
+
+  uint64_t reciprocal;
+  uint16_t slot_count;
+};
+
+// Mutable tables retain the existing growth sequence. Immutable tables provide
+// a descriptor computed for their exact entry count instead.
+static constexpr FlatSmallHashtableCapacity
+    kMutableFlatSmallHashtableCapacities[] = {
+        FlatSmallHashtableCapacity(kRadkePrimes[0]),
+        FlatSmallHashtableCapacity(kRadkePrimes[1]),
+        FlatSmallHashtableCapacity(kRadkePrimes[2]),
+        FlatSmallHashtableCapacity(kRadkePrimes[3]),
+        FlatSmallHashtableCapacity(kRadkePrimes[4]),
+        FlatSmallHashtableCapacity(kRadkePrimes[5]),
+        FlatSmallHashtableCapacity(kRadkePrimes[6]),
+        FlatSmallHashtableCapacity(kRadkePrimes[7]),
+        FlatSmallHashtableCapacity(kRadkePrimes[8]),
+        FlatSmallHashtableCapacity(kRadkePrimes[9]),
+        FlatSmallHashtableCapacity(kRadkePrimes[10]),
+        FlatSmallHashtableCapacity(kRadkePrimes[11]),
+        FlatSmallHashtableCapacity(kRadkePrimes[12]),
+        FlatSmallHashtableCapacity(kRadkePrimes[13]),
+        FlatSmallHashtableCapacity(kRadkePrimes[14]),
+        FlatSmallHashtableCapacity(kRadkePrimes[15]),
+};
+
+}  // namespace impl
+
 template <typename InputIt>
 inline uint16_t initialCapacityHint(InputIt first, InputIt last,
                                     std::input_iterator_tag) {

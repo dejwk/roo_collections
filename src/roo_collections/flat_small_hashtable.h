@@ -28,7 +28,7 @@ class FlatSmallHashtable
       ReadOnlyFlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>;
   using State = typename ReadOnly::State;
   using ReadOnly::buffer_;
-  using ReadOnly::capacity_idx_;
+  using ReadOnly::capacity_info_;
   using ReadOnly::DELETED;
   using ReadOnly::dummy_empty_state_;
   using ReadOnly::EMPTY;
@@ -135,71 +135,65 @@ class FlatSmallHashtable
   FlatSmallHashtable(uint16_t size_hint, HashFn hash_fn = HashFn(),
                      KeyFn key_fn = KeyFn(), KeyCmpFn key_cmp_fn = KeyCmpFn())
       : ReadOnly(hash_fn, key_fn, key_cmp_fn) {
-    capacity_idx_ = initialCapacityIdx(size_hint);
-    resize_threshold_ = capacity_idx_ == 15
+    int capacity_idx = initialCapacityIdx(size_hint);
+    capacity_info_ = &impl::kMutableFlatSmallHashtableCapacities[capacity_idx];
+    resize_threshold_ = capacity_idx == 15
                             ? 64000
-                            : static_cast<uint16_t>(
-                                  kRadkePrimes[capacity_idx_] * kMaxFillRatio);
-    buffer_ =
-        capacity_idx_ > 0 ? new Entry[kRadkePrimes[capacity_idx_]] : nullptr;
-    states_ = capacity_idx_ > 0 ? new State[kRadkePrimes[capacity_idx_]]
-                                : &dummy_empty_state_;
-    std::fill(&states_[0], &states_[kRadkePrimes[capacity_idx_]], State(EMPTY));
+                            : static_cast<uint16_t>(ht_len() * kMaxFillRatio);
+    buffer_ = ht_len() > 1 ? new Entry[ht_len()] : nullptr;
+    states_ = ht_len() > 1 ? new State[ht_len()] : &dummy_empty_state_;
+    std::fill(&states_[0], &states_[ht_len()], State(EMPTY));
   }
 
   /// @brief Move constructor.
   FlatSmallHashtable(FlatSmallHashtable&& other)
       : ReadOnly(std::move(other.hash_fn_), std::move(other.key_fn_),
                  std::move(other.key_cmp_fn_)) {
-    capacity_idx_ = other.capacity_idx_;
+    capacity_info_ = other.capacity_info_;
     used_ = other.used_;
     erased_ = other.erased_;
     resize_threshold_ = other.resize_threshold_;
     buffer_ = other.buffer_;
-    states_ = capacity_idx_ > 0 ? other.states_ : &dummy_empty_state_;
+    states_ = ht_len() > 1 ? other.states_ : &dummy_empty_state_;
     other.resetToEmptySentinel();
   }
 
   /// @brief Copy constructor.
   FlatSmallHashtable(const FlatSmallHashtable& other)
       : ReadOnly(other.hash_fn_, other.key_fn_, other.key_cmp_fn_) {
-    capacity_idx_ = other.capacity_idx_;
+    capacity_info_ = other.capacity_info_;
     used_ = other.used_;
     erased_ = other.erased_;
     resize_threshold_ = other.resize_threshold_;
-    buffer_ =
-        capacity_idx_ > 0 ? new Entry[kRadkePrimes[capacity_idx_]] : nullptr;
-    states_ = capacity_idx_ > 0 ? new State[kRadkePrimes[capacity_idx_]]
-                                : &dummy_empty_state_;
+    buffer_ = ht_len() > 1 ? new Entry[ht_len()] : nullptr;
+    states_ = ht_len() > 1 ? new State[ht_len()] : &dummy_empty_state_;
     if (other.buffer_ != nullptr) {
-      std::copy(&other.buffer_[0], &other.buffer_[kRadkePrimes[capacity_idx_]],
-                buffer_);
+      std::copy(&other.buffer_[0], &other.buffer_[ht_len()], buffer_);
     }
-    std::copy(&other.states_[0], &other.states_[kRadkePrimes[capacity_idx_]],
-              states_);
+    std::copy(&other.states_[0], &other.states_[ht_len()], states_);
   }
 
   /// @brief Destructor.
   ~FlatSmallHashtable() {
-    if (capacity_idx_ > 0) delete[] states_;
+    if (ht_len() > 1) delete[] states_;
     delete[] buffer_;
   }
 
   /// @brief Move assignment.
   FlatSmallHashtable& operator=(FlatSmallHashtable&& other) {
     if (this != &other) {
-      if (capacity_idx_ > 0) delete[] states_;
+      if (ht_len() > 1) delete[] states_;
       delete[] buffer_;
       hash_fn_ = std::move(other.hash_fn_);
       key_fn_ = std::move(other.key_fn_);
       key_cmp_fn_ = std::move(other.key_cmp_fn_);
-      capacity_idx_ = other.capacity_idx_;
+      capacity_info_ = other.capacity_info_;
       used_ = other.used_;
       erased_ = other.erased_;
       resize_threshold_ = other.resize_threshold_;
       buffer_ = other.buffer_;
       dummy_empty_state_ = EMPTY;
-      states_ = capacity_idx_ > 0 ? other.states_ : &dummy_empty_state_;
+      states_ = ht_len() > 1 ? other.states_ : &dummy_empty_state_;
       other.resetToEmptySentinel();
     }
     return *this;
@@ -208,25 +202,21 @@ class FlatSmallHashtable
   /// @brief Copy assignment.
   FlatSmallHashtable& operator=(const FlatSmallHashtable& other) {
     if (this != &other) {
-      if (capacity_idx_ > 0) delete[] states_;
+      if (ht_len() > 1) delete[] states_;
       delete[] buffer_;
       hash_fn_ = other.hash_fn_;
       key_fn_ = other.key_fn_;
       key_cmp_fn_ = other.key_cmp_fn_;
-      capacity_idx_ = other.capacity_idx_;
+      capacity_info_ = other.capacity_info_;
       used_ = other.used_;
       erased_ = other.erased_;
       resize_threshold_ = other.resize_threshold_;
-      buffer_ =
-          capacity_idx_ > 0 ? new Entry[kRadkePrimes[capacity_idx_]] : nullptr;
-      states_ = capacity_idx_ > 0 ? new State[kRadkePrimes[capacity_idx_]]
-                                  : &dummy_empty_state_;
+      buffer_ = ht_len() > 1 ? new Entry[ht_len()] : nullptr;
+      states_ = ht_len() > 1 ? new State[ht_len()] : &dummy_empty_state_;
       if (other.buffer_ != nullptr) {
-        std::copy(&other.buffer_[0],
-                  &other.buffer_[kRadkePrimes[capacity_idx_]], &buffer_[0]);
+        std::copy(&other.buffer_[0], &other.buffer_[ht_len()], &buffer_[0]);
       }
-      std::copy(&other.states_[0], &other.states_[kRadkePrimes[capacity_idx_]],
-                &states_[0]);
+      std::copy(&other.states_[0], &other.states_[ht_len()], &states_[0]);
     }
     return *this;
   }
@@ -269,7 +259,7 @@ class FlatSmallHashtable
   /// @return `true` if an entry was removed.
   bool erase(const Key& key) {
     size_t hash = hash_fn_(key);
-    const uint16_t pos = fastmod(hash, capacity_idx_);
+    const uint16_t pos = capacity_info_->reduceHash(hash);
     if (states_[pos] == EMPTY) return false;
     if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
@@ -312,7 +302,7 @@ class FlatSmallHashtable
             typename = has_is_transparent_t<KeyCmpFn, K>>
   bool erase(const K& key) {
     size_t hash = hash_fn_(key);
-    const uint16_t pos = fastmod(hash, capacity_idx_);
+    const uint16_t pos = capacity_info_->reduceHash(hash);
     if (states_[pos] == EMPTY) return false;
     if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
@@ -353,12 +343,12 @@ class FlatSmallHashtable
   /// @brief Removes all entries while preserving current allocated capacity.
   void clear() {
     if (used_ == 0 && erased_ == 0) return;
-    std::fill(&states_[0], &states_[kRadkePrimes[capacity_idx_]], State(EMPTY));
-    for (size_t i = 0; i < kRadkePrimes[capacity_idx_]; ++i) {
+    std::fill(&states_[0], &states_[ht_len()], State(EMPTY));
+    for (size_t i = 0; i < ht_len(); ++i) {
       buffer_[i] = Entry();
     }
     // Avoiding std::fill, because it doesn't work for non-copyable entries.
-    // std::fill(&buffer_[0], &buffer_[kRadkePrimes[capacity_idx_]], Entry());
+    // std::fill(&buffer_[0], &buffer_[ht_len()], Entry());
     used_ = 0;
     erased_ = 0;
   }
@@ -366,7 +356,7 @@ class FlatSmallHashtable
   /// @brief Rebuilds the table to remove tombstones and shrink capacity.
   void compact() {
     int capacity_idx = initialCapacityIdx(size());
-    if (capacity_idx == capacity_idx_ && erased_ == 0) return;
+    if (kRadkePrimes[capacity_idx] == ht_len() && erased_ == 0) return;
     assert(capacity_idx < 15);  // Or, exceeded maximum hashtable size.
     FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn> newt(
         size(), hash_fn_, key_fn_, key_cmp_fn_);
@@ -381,7 +371,7 @@ class FlatSmallHashtable
   std::pair<Iterator, bool> insert(Entry val) {
     Key key = key_fn_(val);
     size_t hash = hash_fn_(key);
-    uint16_t pos = fastmod(hash, capacity_idx_);
+    uint16_t pos = capacity_info_->reduceHash(hash);
     // Fast path.
     if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
@@ -411,16 +401,15 @@ class FlatSmallHashtable
           // observed on ESP32).
           used_ = newt.used_;
           erased_ = 0;
-          memcpy(states_, newt.states_,
-                 kRadkePrimes[capacity_idx_] * sizeof(State));
-          for (size_t i = 0; i < kRadkePrimes[capacity_idx_]; ++i) {
+          memcpy(states_, newt.states_, ht_len() * sizeof(State));
+          for (size_t i = 0; i < ht_len(); ++i) {
             buffer_[i] = std::move(newt.buffer_[i]);
           }
         } else {
           *this = std::move(newt);
         }
       }
-      pos = fastmod(hash, capacity_idx_);
+      pos = capacity_info_->reduceHash(hash);
     }
     // Fast path for not found.
     if (states_[pos] == EMPTY) {
@@ -455,7 +444,7 @@ class FlatSmallHashtable
  protected:
   Iterator lookup(const Key& key) {
     size_t hash = hash_fn_(key);
-    const uint16_t pos = fastmod(hash, capacity_idx_);
+    const uint16_t pos = capacity_info_->reduceHash(hash);
     if (states_[pos] == EMPTY) return end();
     if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
@@ -482,7 +471,7 @@ class FlatSmallHashtable
             typename = has_is_transparent_t<KeyCmpFn, K>>
   Iterator lookup(const K& key) {
     size_t hash = hash_fn_(key);
-    const uint16_t pos = fastmod(hash, capacity_idx_);
+    const uint16_t pos = capacity_info_->reduceHash(hash);
     if (states_[pos] == EMPTY) return end();
     if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
@@ -507,7 +496,7 @@ class FlatSmallHashtable
 
  private:
   void resetToEmptySentinel() {
-    capacity_idx_ = 0;
+    capacity_info_ = &impl::kMutableFlatSmallHashtableCapacities[0];
     used_ = 0;
     erased_ = 0;
     resize_threshold_ = 0;

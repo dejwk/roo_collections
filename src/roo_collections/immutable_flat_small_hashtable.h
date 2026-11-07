@@ -11,6 +11,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "roo_collections/impl/immutable_flat_small_hashtable_capacity.h"
 #include "roo_collections/read_only_flat_small_hashtable.h"
 
 namespace roo_collections {
@@ -53,8 +54,8 @@ template <typename Entry, typename Key, size_t N, typename HashFn,
           typename KeyFn, typename KeyCmpFn>
 class ImmutableFlatSmallHashtableData {
   static_assert(N <= 64000, "Immutable table exceeds maximum supported size");
-  static constexpr int kCapacityIdx = initialCapacityIdx(N);
-  static constexpr uint16_t kSlotCount = kRadkePrimes[kCapacityIdx];
+  using Capacity = impl::ImmutableFlatSmallHashtableCapacity<N>;
+  static constexpr uint16_t kSlotCount = Capacity::kSlotCount;
 
  public:
   /// Copies and hashes exactly N distinct entries; duplicates are rejected.
@@ -87,7 +88,7 @@ class ImmutableFlatSmallHashtableData {
     for (const Entry& entry : entries) {
       const Key& key = key_fn_(entry);
       uint32_t hash = hash_fn_(key);
-      internal::FlatSmallHashtableProbe probe(fastmod(hash, kCapacityIdx),
+      internal::FlatSmallHashtableProbe probe(Capacity::kValue.reduceHash(hash),
                                               kSlotCount);
       while (states_[probe.position()] != 0) {
         if (key_cmp_fn_(key_fn_(entries_[probe.position()]), key)) {
@@ -139,8 +140,8 @@ class ImmutableFlatSmallHashtable
   using ReadOnly::key_cmp_fn_;
   using ReadOnly::key_fn_;
   static_assert(N <= 64000, "Immutable table exceeds maximum supported size");
-  static constexpr int kCapacityIdx = initialCapacityIdx(N);
-  static constexpr uint16_t kSlotCount = kRadkePrimes[kCapacityIdx];
+  using Capacity = impl::ImmutableFlatSmallHashtableCapacity<N>;
+  static constexpr uint16_t kSlotCount = Capacity::kSlotCount;
 
  public:
   using read_only_type = ReadOnly;
@@ -375,7 +376,7 @@ class ImmutableFlatSmallHashtable
     uint32_t hash = hash_fn_(key);
     uint16_t pos = internal::FindFlatSmallBucket(
         entries_.data(), states_.data(), kSlotCount,
-        fastmod(hash, kCapacityIdx), hash, key, key_fn_, key_cmp_fn_);
+        Capacity::kValue.reduceHash(hash), hash, key, key_fn_, key_cmp_fn_);
     return ConstIterator(this, pos);
   }
 
@@ -392,7 +393,7 @@ class ImmutableFlatSmallHashtable
   constexpr void bindStorage() {
     ReadOnly::buffer_ = entries_.data();
     ReadOnly::states_ = states_.data();
-    ReadOnly::capacity_idx_ = kCapacityIdx;
+    ReadOnly::capacity_info_ = &Capacity::kValue;
     ReadOnly::used_ = N;
     ReadOnly::erased_ = 0;
     ReadOnly::resize_threshold_ = N;

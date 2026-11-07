@@ -21,7 +21,7 @@ bits are the same on 32-bit and 64-bit targets. Hashes intentionally differ from
 
 `Murmur3Fmix32(uint32_t)` is available in `roo_collections/hash.h`. It and the
 default integral/enum policy are `constexpr` in C++14 and later, and usable at
-runtime in C++11. Mutable and immutable tables share this policy.
+runtime in C++11. Mutable, immutable and read-only tables share this policy.
 The finalizer is an unseeded integer mixer; it is not full MurmurHash3 of a
 four-byte buffer. String keys continue to use full MurmurHash3, and other key
 types use `std::hash` unless a custom policy is supplied.
@@ -29,6 +29,47 @@ types use `std::hash` unless a custom policy is supplied.
 Mixing makes lookup less sensitive to structured missing-key ranges, at the
 cost of hash computation and potentially more probes for previously
 collision-free keys. It does not guarantee faster lookups for every workload.
+
+## Common read-only interfaces
+
+`ReadOnlyFlatSmallHashtable`, `ReadOnlyFlatSmallHashMap` and
+`ReadOnlyFlatSmallHashSet` accept both mutable and immutable owners with matching
+entry/key types and policies. They are non-virtual bases, accessed by pointer
+or reference. They expose const lookup and iteration; map specializations also
+provide const `at()` and `operator[]`, which require an existing key.
+
+```cpp
+#include "roo_collections/read_only_flat_small_hash_map.h"
+
+int ReadSetting(const roo_collections::ReadOnlyFlatSmallHashMap<int, int>& map,
+                int key) {
+  auto it = map.find(key);
+  return it == map.end() ? -1 : it->second;
+}
+```
+
+Pass either owner directly to `ReadSetting`; no view construction or copying is
+needed. The owner must outlive every use of the reference. A reference remains
+attached to the same owner through insertion, erasure, rehashing, clearing and
+assignment, and observes its updated storage and size. Iterators and entry
+references still follow the owner's usual invalidation rules. Moving from an
+owner leaves its existing base references attached to the valid moved-from
+object. Destroy concrete owners, never base pointers; base construction,
+assignment and destruction are protected to prevent slicing and ownership loss.
+
+Lookup reads the existing arrays and policies directly, without storage
+callbacks or virtual calls. Mutable owners reuse their original header fields.
+Immutable owners gain that header, with pointers rebound to their own inline
+arrays on construction, copy, move and assignment. Concrete immutable lookup
+retains its compile-time-capacity implementation.
+
+The default `ImmutableHashFn` is an alias of `DefaultHashFn`, so default-policy
+owners with matching key/value types share exactly the same base type. Stored
+key types must match too: `FlatSmallStringHashMap` owns `std::string` keys,
+whereas immutable string maps store `roo::string_view`. Use a regular
+`FlatSmallHashMap<roo::string_view, Value, TransparentStringHashFn, TransparentEq>`
+when it needs to share the string-view-keyed read-only base with an immutable
+string map.
 
 ## Immutable tables in flash
 
@@ -57,10 +98,10 @@ struct SettingKey {
   }
 };
 
-static constexpr auto kSettings =
-    roo_collections::MakeImmutableFlatSmallHashtable<Setting, int>(
+static constexpr roo_collections::ImmutableFlatSmallHashtable kSettings(
+    roo_collections::WithEntries<Setting, int>(
         {{1, 100}, {2, 200}}, roo_collections::ImmutableHashFn<int>{},
-        SettingKey{});
+        SettingKey{}));
 
 static_assert(kSettings.find(2)->value == 200);
 ```
@@ -72,16 +113,21 @@ maps store `roo::string_view` keys and support heterogeneous lookup:
 ```cpp
 #include "roo_collections/immutable_flat_small_hash_map.h"
 
-static constexpr auto kCommands =
-    roo_collections::MakeImmutableFlatSmallStringHashMap<int>(
-        {{"start", 1}, {"stop", 2}, {"reset", 3}});
+static constexpr roo_collections::ImmutableFlatSmallHashMap kRecords(
+    roo_collections::WithMapping<int, int>({{1, 10}, {2, 20}}));
 
+static constexpr roo_collections::ImmutableFlatSmallHashMap kCommands(
+    roo_collections::WithStringMapping<int>(
+        {{"start", 1}, {"stop", 2}, {"reset", 3}}));
+
+static_assert(kRecords.at(2) == 20);
 static_assert(kCommands.at("stop") == 2);
 static_assert(kCommands["reset"] == 3);
 ```
 
-`MakeImmutableFlatSmallHashMap<Key, Value>(pairs)` builds a map for general key
-types. `ImmutableFlatSmallStringHashMap<Value, N>` is the explicit string-view
+`WithMapping<Key, Value>(pairs)` prepares a map for general key types;
+`WithStringMapping<Value>(pairs)` selects transparent string-view policies.
+`ImmutableFlatSmallStringHashMap<Value, N>` is the explicit string-view
 map type; it accepts string literals, `roo::string_view`, `std::string`,
 `SmallString`, and Arduino `String` (when available) as lookup keys.
 
@@ -92,16 +138,33 @@ iteration API as the hashtable. Its string-specialized alias is
 ```cpp
 #include "roo_collections/immutable_flat_small_hash_set.h"
 
-static constexpr auto kAllowed =
-    roo_collections::MakeImmutableFlatSmallHashSet<int>({1, 2, 3});
-static constexpr auto kNames =
-    roo_collections::MakeImmutableFlatSmallStringHashSet({"start", "stop"});
+static constexpr roo_collections::ImmutableFlatSmallHashtable kAllowed(
+    roo_collections::WithElements<int>({1, 2, 3}));
+static constexpr roo_collections::ImmutableFlatSmallHashtable kNames(
+    roo_collections::WithStringElements({"start", "stop"}));
 
 static_assert(kAllowed.contains(2));
 static_assert(kNames.contains("stop"));
 ```
 
-The factory deduces the count from an array reference. `std::array` inputs are
+`WithEntries`, `WithMapping`, and `WithElements` return pointer-free prepared
+arrays for tables, maps, and sets. `WithStringMapping` and `WithStringElements`
+select transparent string-view policies. Constructing the owner directly from
+those arrays binds its read-only header to its final storage,
+avoiding GCC's constexpr limitations on returning self-referential objects.
+Use namespace-scope or `static constexpr` owners: a standalone automatic
+`constexpr` owner cannot retain pointers to its own automatic storage. Ordinary
+runtime locals and transient owners used inside constexpr evaluation are
+supported. Explicit copy/move constructors and assignments rebind each owner's
+header; immutable moves copy inline data and leave both owners valid.
+
+Existing array/std::array constructors and `MakeImmutable...` owner-returning
+factories remain available for runtime use. For portable constexpr construction,
+use the `With...` construction form above. Set names remain aliases; deducing
+`ImmutableFlatSmallHashtable` from set data produces the corresponding set
+specialization without requiring an explicit entry count.
+
+The helpers deduce the count from an array reference. `std::array` inputs are
 also accepted, including `std::array<Entry, 0>{}` for an empty table. The entry
 count is part of the type, and `capacity()` reports that fixed count; `ht_len()`
 reports the bucket count. At most 64000 entries are supported.

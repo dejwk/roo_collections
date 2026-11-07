@@ -8,14 +8,14 @@
 namespace roo_collections {
 namespace {
 
-constexpr auto kCommands =
-    MakeImmutableFlatSmallHashMap<::roo::string_view, int>(
-        {{"start", 1}, {"stop", 2}, {"reset", 3}});
-constexpr auto kStrings = MakeImmutableFlatSmallStringHashMap<int>(
-    {{"start", 1}, {"stop", 2}, {"reset", 3}});
-constexpr auto kEmpty =
-    MakeImmutableFlatSmallHashMap(std::array<std::pair<int, int>, 0>{});
-constexpr ImmutableFlatSmallHashMap<int, int, 0> kDefaultEmpty;
+static constexpr ImmutableFlatSmallHashMap kCommands(
+    WithMapping<::roo::string_view, int>(
+        {{"start", 1}, {"stop", 2}, {"reset", 3}}));
+static constexpr ImmutableFlatSmallHashMap kStrings(
+    WithStringMapping<int>({{"start", 1}, {"stop", 2}, {"reset", 3}}));
+static constexpr ImmutableFlatSmallHashMap kEmpty(
+    WithMapping(std::array<std::pair<int, int>, 0>{}));
+static constexpr ImmutableFlatSmallHashMap<int, int, 0> kDefaultEmpty;
 
 static_assert(kCommands.at("stop") == 2, "constexpr mapped lookup");
 static_assert(kCommands["reset"] == 3, "constexpr subscript");
@@ -32,8 +32,8 @@ struct ConstantHash {
 // Verifies pair insertion remains constexpr under C++17 despite std::pair's
 // non-constexpr assignment, including collision handling and mapped values.
 TEST(ImmutableFlatSmallHashMap, ConstexprPairsAndCollisions) {
-  constexpr auto map = MakeImmutableFlatSmallHashMap<int, int>(
-      {{1, 10}, {2, 20}, {3, 30}, {4, 40}}, ConstantHash{});
+  static constexpr ImmutableFlatSmallHashMap map(WithMapping<int, int>(
+      {{1, 10}, {2, 20}, {3, 30}, {4, 40}}, ConstantHash{}));
   static_assert(map.at(4) == 40, "colliding pair lookup");
   static_assert(!map.contains(5), "colliding pair miss");
   for (int key = 1; key <= 4; ++key) EXPECT_EQ(map.at(key), key * 10);
@@ -58,8 +58,8 @@ TEST(ImmutableFlatSmallHashMap, LiteralKeysAndRuntimeQueries) {
 
 // Verifies string keys retain their explicit lengths and unsigned byte values.
 TEST(ImmutableFlatSmallHashMap, BinaryStringKeys) {
-  constexpr auto map = MakeImmutableFlatSmallStringHashMap<int>(
-      {{::roo::string_view("a\0b", 3), 10}, {"a", 20}, {"\xff", 30}});
+  static constexpr ImmutableFlatSmallHashMap map(WithStringMapping<int>(
+      {{::roo::string_view("a\0b", 3), 10}, {"a", 20}, {"\xff", 30}}));
   static_assert(map.at(::roo::string_view("a\0b", 3)) == 10, "embedded NUL");
   static_assert(map.at("\xff") == 30, "high-bit byte");
   EXPECT_EQ(map.at("a"), 20);
@@ -69,7 +69,7 @@ TEST(ImmutableFlatSmallHashMap, BinaryStringKeys) {
 // Verifies constexpr copies preserve values, own their arrays, and expose
 // neither mutable keys nor mutable mapped values from non-const map objects.
 TEST(ImmutableFlatSmallHashMap, CopiesAndConstOnlyAccess) {
-  constexpr auto copy = kCommands;
+  static constexpr auto copy = kCommands;
   static_assert(copy == kCommands, "constexpr copy");
   auto runtime_copy = kCommands;
   static_assert(std::is_same<decltype(runtime_copy["stop"]), const int&>::value,
@@ -81,14 +81,28 @@ TEST(ImmutableFlatSmallHashMap, CopiesAndConstOnlyAccess) {
   EXPECT_EQ(runtime_copy, kCommands);
 }
 
-// Verifies direct std::array construction and zero-entry string maps.
+// Verifies helper deduction for array inputs, including braced mappings,
+// nonempty std::arrays and zero-entry string maps, alongside direct
+// construction.
 TEST(ImmutableFlatSmallHashMap, ArrayAndEmptyConstruction) {
-  constexpr ImmutableFlatSmallHashMap<int, int, 2> map(
+  static constexpr ImmutableFlatSmallHashMap<int, int, 2> map(
       std::array<std::pair<int, int>, 2>{{{1, 10}, {2, 20}}});
-  constexpr auto empty = MakeImmutableFlatSmallStringHashMap<int>(
-      std::array<std::pair<::roo::string_view, int>, 0>{});
-  constexpr ImmutableFlatSmallStringHashMap<int, 0> default_empty;
+  static constexpr ImmutableFlatSmallHashMap deduced(
+      WithMapping<int, int>({{1, 10}, {2, 20}}));
+  static constexpr ImmutableFlatSmallHashMap from_array(
+      WithMapping(std::array<std::pair<int, int>, 2>{{{1, 10}, {2, 20}}}));
+  static constexpr ImmutableFlatSmallHashMap strings(
+      WithStringMapping<int>(std::array<std::pair<::roo::string_view, int>, 2>{
+          {{"start", 1}, {"stop", 2}}}));
+  static constexpr ImmutableFlatSmallHashMap empty(WithStringMapping<int>(
+      std::array<std::pair<::roo::string_view, int>, 0>{}));
+  static constexpr ImmutableFlatSmallStringHashMap<int, 0> default_empty;
   static_assert(map.at(2) == 20, "explicit construction");
+  static_assert(deduced == map && from_array == map, "deduced mappings");
+  static_assert(strings.at("stop") == 2, "deduced string array mapping");
+  EXPECT_EQ(deduced.at(2), 20);
+  EXPECT_EQ(from_array.at(1), 10);
+  EXPECT_EQ(strings.at(std::string("start")), 1);
   static_assert(empty.empty() && default_empty.empty(), "empty string maps");
   EXPECT_EQ(kEmpty.begin(), kEmpty.end());
   EXPECT_EQ(kDefaultEmpty, kEmpty);

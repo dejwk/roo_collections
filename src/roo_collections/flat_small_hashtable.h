@@ -4,232 +4,9 @@
 /// @brief Flat, memory-conscious hash table implementation.
 /// @ingroup roo_collections
 
-#include <assert.h>
-#include <inttypes.h>
-
-#include <functional>
-#include <initializer_list>
-#include <iterator>
-#include <memory>
-#include <type_traits>
-
-#include "roo_backport.h"
-#include "roo_backport/string_view.h"
-#include "roo_collections/hash.h"
-#include "roo_collections/impl/config.h"
-#include "roo_collections/impl/flat_small_hashtable_lookup.h"
-#include "roo_collections/small_string.h"
-
-#ifdef ARDUINO
-#include <WString.h>
-
-// Adding coparators that migt be missing on some platforms (notably RPI 2040).
-
-inline bool operator==(const ::String& a, roo::string_view b) {
-  return roo::string_view(a.c_str(), a.length()) == b;
-}
-
-inline bool operator==(roo::string_view a, const String& b) { return (b == a); }
-
-#endif
+#include "roo_collections/read_only_flat_small_hashtable.h"
 
 namespace roo_collections {
-
-// Slightly higher than conventional 0.7, mostly so that the default-capacity
-// small hashtable (with ht_len 11) can hold 8 elements.
-static constexpr float kMaxFillRatio = 0.73;
-
-// Sequence of the largest primes of the format 4n+3, less than 2^k,
-// for k = 2 ... 16. When used as hash map capacities, they are known to
-// enable quadratic residue search to visit the entire array. Additionally,
-// we keep the value '1' at the beginning, as the sentinel that indicates
-// an empty hashtable, with no dynamically allocated buffer.
-static constexpr uint16_t kRadkePrimes[] = {
-    0x1,   0x3,   0x7,   0xb,   0x1f,   0x3b,   0x7f,   0xfb,
-    0x1f7, 0x3fb, 0x7f7, 0xffb, 0x1fff, 0x3feb, 0x7fcf, 0xffef};
-
-// These are precalculated (2^48 - 1) / the corresponding radke prime + 1.
-// See
-// https://lemire.me/blog/2019/02/08/faster-remainders-when-the-divisor-is-a-constant-beating-compilers-and-libdivide/
-static constexpr uint64_t kRadkePrimeInverts[] = {
-    0x1000000000000, 0x555555555556, 0x24924924924a, 0x1745d1745d18,
-    0x84210842109,   0x456c797dd4a,  0x20408102041,  0x105197f7d74,
-    0x824a4e60b4,    0x4050647d9e,   0x202428adc4,   0x100501907e,
-    0x800400201,     0x401506e65,    0x200c44b25,    0x100110122};
-
-// Returns n % kRadkePrimes[idx].
-ROO_COLLECTIONS_CONSTEXPR14 uint16_t fastmod(uint32_t n, int idx) {
-  uint64_t lowbits = (kRadkePrimeInverts[idx] * n) & 0x0000FFFFFFFFFFFF;
-  return (lowbits * kRadkePrimes[idx]) >> 48;
-}
-
-ROO_COLLECTIONS_CONSTEXPR14 int initialCapacityIdx(uint16_t size_hint) {
-  uint32_t ht_len = (uint32_t)(((float)size_hint) / kMaxFillRatio) + 1;
-  for (int radkeIdx = 0; radkeIdx < 15; ++radkeIdx) {
-    if (kRadkePrimes[radkeIdx] >= ht_len) return radkeIdx;
-  }
-  return 15;
-}
-
-template <typename InputIt>
-inline uint16_t initialCapacityHint(InputIt first, InputIt last,
-                                    std::input_iterator_tag) {
-  return 8;
-}
-
-template <typename ForwardIt>
-inline uint16_t initialCapacityHint(ForwardIt first, ForwardIt last,
-                                    std::forward_iterator_tag) {
-  size_t count = std::distance(first, last);
-  if (count > 65535) count = 65535;
-  if (count < 8) count = 8;
-  return count;
-}
-
-template <typename InputIt>
-inline uint16_t initialCapacityHint(InputIt first, InputIt last) {
-  return initialCapacityHint(
-      first, last, typename std::iterator_traits<InputIt>::iterator_category());
-}
-
-/// Default hash policy; integral and enum keys use Murmur3's fmix32 mixer.
-/// Integral and enum keys support constant evaluation in C++14+.
-template <typename Key, typename Enable = void>
-struct DefaultHashFn : public std::hash<Key> {};
-
-/// Mixes integral and enum keys into a 32-bit hash, independent of size_t
-/// width. Keys up to 32 bits convert to uint32_t before mixing. For wider keys,
-/// the mixed upper 32 bits are XORed into the lower word before final mixing.
-/// These hashes intentionally differ from std::hash.
-template <typename Key>
-struct DefaultHashFn<Key,
-                     typename std::enable_if<std::is_integral<Key>::value ||
-                                             std::is_enum<Key>::value>::type> {
-  /// Mixes @p key, including the upper word of 64-bit integral/enum keys.
-  ROO_COLLECTIONS_CONSTEXPR14 size_t operator()(Key key) const noexcept {
-    uint32_t value = static_cast<uint32_t>(key);
-    if (sizeof(Key) > sizeof(uint32_t)) {
-      value ^= Murmur3Fmix32(
-          static_cast<uint32_t>(static_cast<uint64_t>(key) >> 32));
-    }
-    return Murmur3Fmix32(value);
-  }
-};
-
-template <>
-struct DefaultHashFn<::roo::string_view> {
-  ROO_COLLECTIONS_CONSTEXPR14 size_t operator()(::roo::string_view val) const {
-    return Murmur3_32(val.data(), val.size(), 0x92F4E42BUL);
-  }
-};
-
-template <>
-struct DefaultHashFn<std::string> {
-  inline size_t operator()(const std::string& val) const {
-    return DefaultHashFn<::roo::string_view>()(::roo::string_view(val));
-  }
-};
-
-template <>
-struct DefaultHashFn<const char*> {
-  ROO_COLLECTIONS_CONSTEXPR14 size_t operator()(const char* val) const {
-    return DefaultHashFn<::roo::string_view>()(::roo::string_view(val));
-  }
-};
-
-template <size_t N>
-struct DefaultHashFn<SmallString<N>> {
-  size_t operator()(const SmallString<N>& str) const {
-    return DefaultHashFn<::roo::string_view>()(str);
-  }
-};
-
-#ifdef ARDUINO
-template <>
-struct DefaultHashFn<::String> {
-  size_t operator()(::String val) const {
-    return DefaultHashFn<::roo::string_view>()(
-        ::roo::string_view(val.c_str(), val.length()));
-  }
-};
-#endif
-
-struct TransparentStringHashFn {
-  // Required to denote a transparent hash.
-  using is_transparent = void;
-
-  // Hash operations required to be consistent:
-  // a == b => hash(a) == hash(b).
-
-  inline size_t operator()(const std::string& val) const {
-    return DefaultHashFn<std::string>()(val);
-  }
-  ROO_COLLECTIONS_CONSTEXPR14 size_t operator()(const char* val) const {
-    return DefaultHashFn<const char*>()(val);
-  }
-  ROO_COLLECTIONS_CONSTEXPR14 size_t operator()(::roo::string_view val) const {
-    return DefaultHashFn<::roo::string_view>()(val);
-  }
-  template <size_t N>
-  inline size_t operator()(const SmallString<N>& val) const {
-    return DefaultHashFn<::roo::string_view>()(val);
-  }
-
-#ifdef ARDUINO
-  inline size_t operator()(::String val) const {
-    return DefaultHashFn<::String>()(val);
-  }
-#endif
-};
-
-struct TransparentEq {
-  // Required to denote a transparent comparator.
-  using is_transparent = void;
-
-  /// Compares string content directly, avoiding implicit Arduino String copies.
-  ROO_COLLECTIONS_CONSTEXPR14 bool operator()(::roo::string_view x,
-                                              const char* y) const {
-    return x == ::roo::string_view(y);
-  }
-
-  /// Compares C strings to views without implicit owning-string conversions.
-  ROO_COLLECTIONS_CONSTEXPR14 bool operator()(const char* x,
-                                              ::roo::string_view y) const {
-    return ::roo::string_view(x) == y;
-  }
-
-  template <typename X, typename Y>
-  constexpr bool operator()(const X& x, const Y& y) const {
-    return x == y;
-  }
-};
-
-namespace internal {
-
-// std::void_t is available only from C++17 onward.
-template <typename...>
-using VoidT = void;
-
-}  // namespace internal
-
-template <typename _Func, typename _SfinaeType, typename = void>
-struct has_is_transparent {};
-
-template <typename _Func, typename _SfinaeType>
-struct has_is_transparent<_Func, _SfinaeType,
-                          internal::VoidT<typename _Func::is_transparent>> {
-  typedef void type;
-};
-
-template <typename _Func, typename _SfinaeType>
-using has_is_transparent_t =
-    typename has_is_transparent<_Func, _SfinaeType>::type;
-
-// For maps, where Key == Entry.
-template <typename Entry>
-struct DefaultKeyFn {
-  constexpr const Entry& operator()(const Entry& entry) const { return entry; }
-};
 
 /// @brief Flat, memory-conscious hash table optimized for small collections.
 ///
@@ -245,55 +22,34 @@ struct DefaultKeyFn {
 template <typename Entry, typename Key, typename HashFn = DefaultHashFn<Key>,
           typename KeyFn = DefaultKeyFn<Entry>,
           typename KeyCmpFn = std::equal_to<Key>>
-class FlatSmallHashtable {
+class FlatSmallHashtable
+    : public ReadOnlyFlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn> {
+  using ReadOnly =
+      ReadOnlyFlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>;
+  using State = typename ReadOnly::State;
+  using ReadOnly::buffer_;
+  using ReadOnly::capacity_idx_;
+  using ReadOnly::DELETED;
+  using ReadOnly::dummy_empty_state_;
+  using ReadOnly::EMPTY;
+  using ReadOnly::erased_;
+  using ReadOnly::hash_fn_;
+  using ReadOnly::key_cmp_fn_;
+  using ReadOnly::key_fn_;
+  using ReadOnly::resize_threshold_;
+  using ReadOnly::states_;
+  using ReadOnly::used_;
+
  public:
-  /// @brief Constant forward iterator.
-  class ConstIterator {
-   public:
-    using iterator_category = std::forward_iterator_tag;
-    using difference_type = std::ptrdiff_t;
-    using value_type = const Entry;
-    using pointer = const Entry*;
-    using reference = const Entry&;
-
-    ConstIterator() : ConstIterator(nullptr, 0) {}
-
-    const Entry& operator*() const { return ht_->buffer_[pos_]; }
-    const Entry* operator->() const { return &ht_->buffer_[pos_]; }
-
-    ConstIterator& operator++() {
-      uint16_t ht_len = ht_->ht_len();
-      do {
-        ++pos_;
-      } while (pos_ < ht_len && ht_->states_[pos_] >= 0);
-      return *this;
-    }
-
-    ConstIterator operator++(int n) {
-      ConstIterator itr = *this;
-      operator++();
-      return itr;
-    }
-
-    bool operator==(const ConstIterator& other) const {
-      return ht_ == other.ht_ && pos_ == other.pos_;
-    }
-
-    bool operator!=(const ConstIterator& other) const {
-      return ht_ != other.ht_ || pos_ != other.pos_;
-    }
-
-   private:
-    friend class FlatSmallHashtable;
-
-    ConstIterator(
-        const FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>* ht,
-        uint16_t pos)
-        : ht_(ht), pos_(pos) {}
-
-    const FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>* ht_;
-    uint16_t pos_;
-  };
+  using read_only_type = ReadOnly;
+  using ConstIterator = typename ReadOnly::ConstIterator;
+  using ReadOnly::capacity;
+  using ReadOnly::empty;
+  using ReadOnly::find;
+  using ReadOnly::ht_len;
+  using ReadOnly::size;
+  using ReadOnly::operator==;
+  using ReadOnly::operator!=;
 
   /// @brief Mutable forward iterator.
   class Iterator {
@@ -378,59 +134,49 @@ class FlatSmallHashtable {
   /// @param size_hint Expected number of items.
   FlatSmallHashtable(uint16_t size_hint, HashFn hash_fn = HashFn(),
                      KeyFn key_fn = KeyFn(), KeyCmpFn key_cmp_fn = KeyCmpFn())
-      : hash_fn_(hash_fn),
-        key_fn_(key_fn),
-        key_cmp_fn_(key_cmp_fn),
-        capacity_idx_(initialCapacityIdx(size_hint)),
-        used_(0),
-        erased_(0),
-        resize_threshold_(
-            capacity_idx_ == 15
-                ? 64000
-                : (uint16_t)(((float)kRadkePrimes[capacity_idx_]) *
-                             kMaxFillRatio)),
-        buffer_(capacity_idx_ > 0 ? new Entry[kRadkePrimes[capacity_idx_]]
-                                  : nullptr),
-        states_(capacity_idx_ > 0 ? new State[kRadkePrimes[capacity_idx_]]
-                                  : &dummy_empty_state_) {
+      : ReadOnly(hash_fn, key_fn, key_cmp_fn) {
+    capacity_idx_ = initialCapacityIdx(size_hint);
+    resize_threshold_ = capacity_idx_ == 15
+                            ? 64000
+                            : static_cast<uint16_t>(
+                                  kRadkePrimes[capacity_idx_] * kMaxFillRatio);
+    buffer_ =
+        capacity_idx_ > 0 ? new Entry[kRadkePrimes[capacity_idx_]] : nullptr;
+    states_ = capacity_idx_ > 0 ? new State[kRadkePrimes[capacity_idx_]]
+                                : &dummy_empty_state_;
     std::fill(&states_[0], &states_[kRadkePrimes[capacity_idx_]], State(EMPTY));
   }
 
   /// @brief Move constructor.
   FlatSmallHashtable(FlatSmallHashtable&& other)
-      : hash_fn_(std::move(other.hash_fn_)),
-        key_fn_(std::move(other.key_fn_)),
-        key_cmp_fn_(std::move(other.key_cmp_fn_)),
-        capacity_idx_(other.capacity_idx_),
-        used_(other.used_),
-        erased_(other.erased_),
-        resize_threshold_(other.resize_threshold_),
-        buffer_(other.buffer_),
-        states_(nullptr),
-        dummy_empty_state_(EMPTY) {
+      : ReadOnly(std::move(other.hash_fn_), std::move(other.key_fn_),
+                 std::move(other.key_cmp_fn_)) {
+    capacity_idx_ = other.capacity_idx_;
+    used_ = other.used_;
+    erased_ = other.erased_;
+    resize_threshold_ = other.resize_threshold_;
+    buffer_ = other.buffer_;
     states_ = capacity_idx_ > 0 ? other.states_ : &dummy_empty_state_;
     other.resetToEmptySentinel();
   }
 
   /// @brief Copy constructor.
   FlatSmallHashtable(const FlatSmallHashtable& other)
-      : hash_fn_(other.hash_fn_),
-        key_fn_(other.key_fn_),
-        key_cmp_fn_(other.key_cmp_fn_),
-        capacity_idx_(other.capacity_idx_),
-        used_(other.used_),
-        erased_(other.erased_),
-        resize_threshold_(other.resize_threshold_),
-        buffer_(capacity_idx_ > 0 ? new Entry[kRadkePrimes[capacity_idx_]]
-                                  : nullptr),
-        states_(capacity_idx_ > 0 ? new State[kRadkePrimes[capacity_idx_]]
-                                  : &dummy_empty_state_) {
+      : ReadOnly(other.hash_fn_, other.key_fn_, other.key_cmp_fn_) {
+    capacity_idx_ = other.capacity_idx_;
+    used_ = other.used_;
+    erased_ = other.erased_;
+    resize_threshold_ = other.resize_threshold_;
+    buffer_ =
+        capacity_idx_ > 0 ? new Entry[kRadkePrimes[capacity_idx_]] : nullptr;
+    states_ = capacity_idx_ > 0 ? new State[kRadkePrimes[capacity_idx_]]
+                                : &dummy_empty_state_;
     if (other.buffer_ != nullptr) {
       std::copy(&other.buffer_[0], &other.buffer_[kRadkePrimes[capacity_idx_]],
-                &buffer_[0]);
+                buffer_);
     }
     std::copy(&other.states_[0], &other.states_[kRadkePrimes[capacity_idx_]],
-              &states_[0]);
+              states_);
   }
 
   /// @brief Destructor.
@@ -503,18 +249,8 @@ class FlatSmallHashtable {
     return !(*this == other);
   }
 
-  /// @brief Returns the internal bucket array length.
-  uint16_t ht_len() const { return kRadkePrimes[capacity_idx_]; }
-
-  /// @brief Returns an iterator to the first element.
-  ConstIterator begin() const {
-    uint16_t cap = ht_len();
-    uint16_t pos = 0;
-    for (; pos < cap; ++pos) {
-      if (states_[pos] < 0) break;
-    }
-    return ConstIterator(this, pos);
-  }
+  using ReadOnly::begin;
+  using ReadOnly::end;
 
   /// @brief Returns a mutable iterator to the first element.
   Iterator begin() {
@@ -528,40 +264,6 @@ class FlatSmallHashtable {
 
   /// @brief Returns iterator past the end.
   Iterator end() { return Iterator(this, ht_len()); }
-
-  /// @brief Returns const iterator past the end.
-  ConstIterator end() const { return ConstIterator(this, ht_len()); }
-
-  /// @brief Returns the number of stored elements.
-  uint16_t size() const { return used_ - erased_; }
-
-  /// @brief Returns whether the table is empty.
-  bool empty() const { return used_ == erased_; }
-
-  /// @brief Returns the number of elements insertable before rehashing.
-  uint16_t capacity() const { return resize_threshold_; }
-
-  /// @brief Finds `key` and returns a const iterator to the matching entry.
-  /// @return `end()` when not found.
-  ConstIterator find(const Key& key) const {
-    uint32_t hash = hash_fn_(key);
-    uint16_t pos = internal::FindFlatSmallBucket(
-        buffer_, states_, ht_len(), fastmod(hash, capacity_idx_), hash, key,
-        key_fn_, key_cmp_fn_);
-    return ConstIterator(this, pos);
-  }
-
-  /// @brief Heterogeneous lookup overload of `find`.
-  /// @return `end()` when not found.
-  template <typename K, typename = has_is_transparent_t<HashFn, K>,
-            typename = has_is_transparent_t<KeyCmpFn, K>>
-  ConstIterator find(const K& key) const {
-    uint32_t hash = hash_fn_(key);
-    uint16_t pos = internal::FindFlatSmallBucket(
-        buffer_, states_, ht_len(), fastmod(hash, capacity_idx_), hash, key,
-        key_fn_, key_cmp_fn_);
-    return ConstIterator(this, pos);
-  }
 
   /// @brief Removes an entry by key.
   /// @return `true` if an entry was removed.
@@ -672,16 +374,6 @@ class FlatSmallHashtable {
       newt.insert(std::move(e));
     }
     *this = std::move(newt);
-  }
-
-  /// @brief Returns whether `key` exists in the table.
-  bool contains(const Key& key) const { return find(key).pos_ != ht_len(); }
-
-  /// @brief Heterogeneous key overload of `contains`.
-  template <typename K, typename = has_is_transparent_t<HashFn, K>,
-            typename = has_is_transparent_t<KeyCmpFn, K>>
-  bool contains(const K& key) const {
-    return find(key).pos_ != ht_len();
   }
 
   /// @brief Inserts `val` if key is not present.
@@ -824,24 +516,7 @@ class FlatSmallHashtable {
     states_ = &dummy_empty_state_;
   }
 
-  using State = int8_t;
-  static constexpr State EMPTY = 0;
-  static constexpr State DELETED = 1;
-  // Full items are marked with a bit pattern of the form 0x80 + (hash & 0x7F).
-
-  friend class ConstIterator;
   friend class Iterator;
-
-  HashFn hash_fn_;
-  KeyFn key_fn_;
-  KeyCmpFn key_cmp_fn_;
-  int capacity_idx_;
-  uint16_t used_;
-  uint16_t erased_;
-  uint16_t resize_threshold_;
-  Entry* buffer_;
-  State* states_;
-  State dummy_empty_state_;
 };
 
 }  // namespace roo_collections

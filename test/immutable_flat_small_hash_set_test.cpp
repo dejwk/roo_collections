@@ -9,11 +9,13 @@
 namespace roo_collections {
 namespace {
 
-constexpr auto kNumbers = MakeImmutableFlatSmallHashSet<int>({1, -2, 42});
-constexpr auto kCommands =
-    MakeImmutableFlatSmallStringHashSet({"start", "stop", "reset"});
-constexpr auto kEmpty = MakeImmutableFlatSmallHashSet(std::array<int, 0>{});
-constexpr ImmutableFlatSmallHashSet<int, 0> kDefaultEmpty;
+static constexpr ImmutableFlatSmallHashtable kNumbers(WithElements<int>({1, -2,
+                                                                         42}));
+static constexpr ImmutableFlatSmallHashtable kCommands(
+    WithStringElements({"start", "stop", "reset"}));
+static constexpr ImmutableFlatSmallHashtable kEmpty(
+    WithElements(std::array<int, 0>{}));
+static constexpr ImmutableFlatSmallHashSet<int, 0> kDefaultEmpty;
 
 static_assert(kNumbers.contains(-2) && !kNumbers.contains(3), "integral set");
 static_assert(kCommands.contains("stop"), "string set");
@@ -31,10 +33,10 @@ struct ConstantHash {
 // Verifies constexpr construction and misses with collisions wrapping around
 // the bucket array, and equality independent of key input order.
 TEST(ImmutableFlatSmallHashSet, CollisionsAndIteration) {
-  constexpr auto set = MakeImmutableFlatSmallHashSet<int>(
-      {1, 2, 3, 4, 5, 6, 7, 8}, ConstantHash{});
-  constexpr auto reversed = MakeImmutableFlatSmallHashSet<int>(
-      {8, 7, 6, 5, 4, 3, 2, 1}, ConstantHash{});
+  static constexpr ImmutableFlatSmallHashtable set(
+      WithElements<int>({1, 2, 3, 4, 5, 6, 7, 8}, ConstantHash{}));
+  static constexpr ImmutableFlatSmallHashtable reversed(
+      WithElements<int>({8, 7, 6, 5, 4, 3, 2, 1}, ConstantHash{}));
   static_assert(set == reversed, "order independent equality");
   static_assert(!set.contains(9), "colliding miss");
   int sum = 0;
@@ -57,8 +59,8 @@ TEST(ImmutableFlatSmallHashSet, StringLookups) {
 #ifdef ARDUINO
   EXPECT_TRUE(kCommands.contains(::String("stop")));
 #endif
-  constexpr auto binary = MakeImmutableFlatSmallStringHashSet(
-      {::roo::string_view("a\0b", 3), "a", "\xff"});
+  static constexpr ImmutableFlatSmallHashtable binary(
+      WithStringElements({::roo::string_view("a\0b", 3), "a", "\xff"}));
   static_assert(binary.contains(::roo::string_view("a\0b", 3)), "embedded NUL");
   static_assert(binary.contains("\xff"), "high-bit byte");
   EXPECT_FALSE(binary.contains(::roo::string_view("a\0", 2)));
@@ -78,15 +80,25 @@ TEST(ImmutableFlatSmallHashSet, CopiesOwnTheirKeys) {
   EXPECT_NE(&*copy.find(1), &*set.find(1));
 }
 
-// Verifies std::array input, default empty sets and zero-key string factories.
+// Verifies helper deduction for nonempty std::arrays, default empty sets
+// and zero-key string inputs, alongside direct array construction.
 TEST(ImmutableFlatSmallHashSet, ArrayAndEmptyConstruction) {
-  constexpr ImmutableFlatSmallHashSet<int, 2> set(std::array<int, 2>{{4, 5}});
-  constexpr auto strings =
-      MakeImmutableFlatSmallStringHashSet(std::array<::roo::string_view, 0>{});
-  constexpr ImmutableFlatSmallStringHashSet<0> default_strings;
+  static constexpr ImmutableFlatSmallHashSet<int, 2> set(
+      std::array<int, 2>{{4, 5}});
+  static constexpr ImmutableFlatSmallHashtable from_array(
+      WithElements(std::array<int, 2>{{4, 5}}));
+  static constexpr ImmutableFlatSmallHashtable names(
+      WithStringElements(std::array<::roo::string_view, 2>{{"on", "off"}}));
+  static constexpr ImmutableFlatSmallHashtable strings(
+      WithStringElements(std::array<::roo::string_view, 0>{}));
+  static constexpr ImmutableFlatSmallStringHashSet<0> default_strings;
   static_assert(set.contains(4) && set.contains(5),
                 "direct array construction");
+  static_assert(from_array == set, "deduced array elements");
+  static_assert(names.contains("on"), "deduced string array elements");
   static_assert(strings.empty() && default_strings.empty(), "empty strings");
+  EXPECT_TRUE(from_array.contains(5));
+  EXPECT_TRUE(names.contains(std::string("off")));
   EXPECT_EQ(kEmpty, kDefaultEmpty);
   EXPECT_EQ(kEmpty.begin(), kEmpty.end());
   EXPECT_FALSE(strings.contains("missing"));

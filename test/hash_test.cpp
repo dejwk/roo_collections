@@ -3,7 +3,6 @@
 #include <stdint.h>
 
 #include <string>
-#include <utility>
 
 #include "gtest/gtest.h"
 #include "roo_collections/flat_small_hash_map.h"
@@ -102,24 +101,28 @@ TEST(Hash, DefaultIntegralAndEnumHashUsesFmix32) {
   EXPECT_EQ(DefaultHashFn<Wide>()(Wide::kUpper), 0x2fef5c8fu);
 }
 
-// Verifies constexpr construction and runtime lookup agree with mutable maps
-// when default hashes mix both words of wide keys.
+// Verifies constexpr construction and concrete/base runtime lookup agree with
+// mutable maps when default hashes mix both words of wide keys.
 TEST(Hash, DefaultMixedHashWorksAcrossMapOwners) {
-  static constexpr std::pair<uint64_t, int> entries[] = {
-      {0, 10}, {1, 20}, {uint64_t{1} << 32, 30}, {UINT64_MAX, 40}};
-  static constexpr ImmutableFlatSmallHashMap<uint64_t, int, 4> immutable(
-      entries);
+  static constexpr ImmutableFlatSmallHashMap immutable(
+      WithMapping<uint64_t, int>(
+          {{0, 10}, {1, 20}, {uint64_t{1} << 32, 30}, {UINT64_MAX, 40}}));
   static_assert(immutable.at(uint64_t{1} << 32) == 30,
                 "constexpr mixed lookup");
   static_assert(immutable.at(UINT64_MAX) == 40, "constexpr wide lookup");
   static_assert(!immutable.contains(0x100000001ULL), "constexpr mixed miss");
   FlatSmallHashMap<uint64_t, int> mutable_map{
       {0, 10}, {1, 20}, {uint64_t{1} << 32, 30}, {UINT64_MAX, 40}};
+  const ReadOnlyFlatSmallHashMap<uint64_t, int>& immutable_base = immutable;
+  const ReadOnlyFlatSmallHashMap<uint64_t, int>& mutable_base = mutable_map;
   for (const auto& entry : immutable) {
     EXPECT_EQ(immutable.at(entry.first), entry.second);
+    EXPECT_EQ(immutable_base.at(entry.first), entry.second);
     EXPECT_EQ(mutable_map.at(entry.first), entry.second);
+    EXPECT_EQ(mutable_base.at(entry.first), entry.second);
   }
-  EXPECT_FALSE(mutable_map.contains(0x100000001ULL));
+  EXPECT_FALSE(immutable_base.contains(0x100000001ULL));
+  EXPECT_FALSE(mutable_base.contains(0x100000001ULL));
 }
 
 // Verifies murmur3_32 matches the standard x86_32 MurmurHash3 reference across

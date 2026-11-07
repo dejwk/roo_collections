@@ -36,6 +36,29 @@ class ImmutableFlatSmallHashMap
       ImmutableFlatSmallHashtable<std::pair<Key, Value>, Key, N, HashFn,
                                   MapKeyFn<Key, Value>, KeyCmpFn>;
   using value_type = typename Base::value_type;
+  using Data = typename Base::Data;
+
+  /// Directly constructs the map from pointer-free prepared data.
+  explicit constexpr ImmutableFlatSmallHashMap(const Data& data) : Base(data) {}
+
+  /// Consumes prepared data, avoiding additional copies of movable entries.
+  explicit constexpr ImmutableFlatSmallHashMap(Data&& data)
+      : Base(std::move(data)) {}
+
+  /// Copies inline data and rebinds the common base to this map's arrays.
+  constexpr ImmutableFlatSmallHashMap(const ImmutableFlatSmallHashMap&) =
+      default;
+
+  /// Preserves independent inline storage in both maps.
+  constexpr ImmutableFlatSmallHashMap(ImmutableFlatSmallHashMap&&) = default;
+
+  /// Assigns data while keeping references to this map's base attached.
+  constexpr ImmutableFlatSmallHashMap& operator=(
+      const ImmutableFlatSmallHashMap&) = default;
+
+  /// Assigns independent inline data from another map.
+  constexpr ImmutableFlatSmallHashMap& operator=(ImmutableFlatSmallHashMap&&) =
+      default;
 
   /// Creates an empty map; requires N to be zero.
   constexpr ImmutableFlatSmallHashMap(HashFn hash_fn = HashFn(),
@@ -87,6 +110,41 @@ class ImmutableFlatSmallHashMap
   }
 };
 
+/// Deduces map key, value, count and policy types from prepared data.
+template <typename Key, typename Value, size_t N, typename HashFn,
+          typename KeyCmpFn>
+ImmutableFlatSmallHashMap(
+    const impl::ImmutableFlatSmallHashtableData<
+        std::pair<Key, Value>, Key, N, HashFn, MapKeyFn<Key, Value>, KeyCmpFn>&)
+    -> ImmutableFlatSmallHashMap<Key, Value, N, HashFn, KeyCmpFn>;
+
+/// Prepares @p entries for direct C++17 constexpr map construction.
+/// Returns pointer-free data; construct ImmutableFlatSmallHashMap from it
+/// to deduce the entry count and bind the owner's inline storage.
+/// Duplicate keys fail constant evaluation or abort runtime construction.
+template <typename Key, typename Value, size_t N,
+          typename HashFn = ImmutableHashFn<Key>,
+          typename KeyCmpFn = std::equal_to<Key>>
+constexpr auto WithMapping(const std::pair<Key, Value> (&entries)[N],
+                           HashFn hash_fn = HashFn(),
+                           KeyCmpFn key_cmp_fn = KeyCmpFn()) {
+  return WithEntries<std::pair<Key, Value>, Key>(
+      entries, std::move_if_noexcept(hash_fn), MapKeyFn<Key, Value>(),
+      std::move_if_noexcept(key_cmp_fn));
+}
+
+/// Builds pointer-free map data from std::array, including zero pairs.
+template <typename Key, typename Value, size_t N,
+          typename HashFn = ImmutableHashFn<Key>,
+          typename KeyCmpFn = std::equal_to<Key>>
+constexpr auto WithMapping(const std::array<std::pair<Key, Value>, N>& entries,
+                           HashFn hash_fn = HashFn(),
+                           KeyCmpFn key_cmp_fn = KeyCmpFn()) {
+  return WithEntries<std::pair<Key, Value>, Key>(
+      entries, std::move_if_noexcept(hash_fn), MapKeyFn<Key, Value>(),
+      std::move_if_noexcept(key_cmp_fn));
+}
+
 /// Builds an immutable map, deducing its count from an array of pairs.
 /// Duplicate keys fail constant evaluation or abort runtime construction.
 template <typename Key, typename Value, size_t N,
@@ -132,6 +190,24 @@ template <typename Value, size_t N>
 constexpr auto MakeImmutableFlatSmallStringHashMap(
     const std::array<std::pair<::roo::string_view, Value>, N>& entries) {
   return ImmutableFlatSmallStringHashMap<Value, N>(entries);
+}
+
+/// Prepares @p entries for a map with transparent string-view lookup.
+/// Returns pointer-free data for direct ImmutableFlatSmallHashMap construction.
+/// Stored views borrow character data that must outlive the owner.
+template <typename Value, size_t N>
+constexpr auto WithStringMapping(
+    const std::pair<::roo::string_view, Value> (&entries)[N]) {
+  return WithMapping<::roo::string_view, Value>(
+      entries, TransparentStringHashFn(), TransparentEq());
+}
+
+/// Builds pointer-free string-view map data from std::array, including empty.
+template <typename Value, size_t N>
+constexpr auto WithStringMapping(
+    const std::array<std::pair<::roo::string_view, Value>, N>& entries) {
+  return WithMapping<::roo::string_view, Value>(
+      entries, TransparentStringHashFn(), TransparentEq());
 }
 
 }  // namespace roo_collections

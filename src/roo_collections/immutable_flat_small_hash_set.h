@@ -72,6 +72,47 @@ constexpr auto MakeImmutableFlatSmallStringHashSet(
   return ImmutableFlatSmallStringHashSet<N>(keys);
 }
 
+/// Prepares @p keys for direct C++17 constexpr set construction.
+/// Returns pointer-free data for the owner's inline storage.
+/// Construct ImmutableFlatSmallHashtable from the result to deduce the count;
+/// its type is the corresponding ImmutableFlatSmallHashSet specialization.
+template <typename Key, size_t N, typename HashFn = ImmutableHashFn<Key>,
+          typename KeyCmpFn = std::equal_to<Key>>
+constexpr auto WithElements(const Key (&keys)[N], HashFn hash_fn = HashFn(),
+                            KeyCmpFn key_cmp_fn = KeyCmpFn()) {
+  return WithEntries<Key>(keys, std::move_if_noexcept(hash_fn),
+                          DefaultKeyFn<Key>(),
+                          std::move_if_noexcept(key_cmp_fn));
+}
+
+/// Builds pointer-free set data from std::array, including zero keys.
+template <typename Key, size_t N, typename HashFn = ImmutableHashFn<Key>,
+          typename KeyCmpFn = std::equal_to<Key>>
+constexpr auto WithElements(const std::array<Key, N>& keys,
+                            HashFn hash_fn = HashFn(),
+                            KeyCmpFn key_cmp_fn = KeyCmpFn()) {
+  return WithEntries<Key>(keys, std::move_if_noexcept(hash_fn),
+                          DefaultKeyFn<Key>(),
+                          std::move_if_noexcept(key_cmp_fn));
+}
+
+/// Prepares @p keys for a set with transparent string-view lookup.
+/// Returns pointer-free data for direct ImmutableFlatSmallHashtable
+/// construction. Stored character data must outlive the owner.
+template <size_t N>
+constexpr auto WithStringElements(const ::roo::string_view (&keys)[N]) {
+  return WithElements<::roo::string_view>(keys, TransparentStringHashFn(),
+                                          TransparentEq());
+}
+
+/// Builds pointer-free string-view set data from std::array, including empty.
+template <size_t N>
+constexpr auto WithStringElements(
+    const std::array<::roo::string_view, N>& keys) {
+  return WithElements<::roo::string_view>(keys, TransparentStringHashFn(),
+                                          TransparentEq());
+}
+
 }  // namespace roo_collections
 
 #else

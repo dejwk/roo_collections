@@ -183,3 +183,13 @@ cc_test(
     ],
     deps = [":roo_collections"],
 )
+
+cc_test(
+    name = "read_only_flat_small_hashtable_test",
+    size = "small",
+    srcs = ["test/read_only_flat_small_hashtable_test.cpp"],
+    deps = [
+        ":roo_collections",
+        "@googletest//:gtest_main",
+    ],
+)

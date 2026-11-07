@@ -7,15 +7,9 @@
 #include <functional>
 
 #include "roo_collections/flat_small_hashtable.h"
+#include "roo_collections/read_only_flat_small_hash_map.h"
 
 namespace roo_collections {
-
-template <typename Key, typename Value>
-struct MapKeyFn {
-  constexpr const Key& operator()(const std::pair<Key, Value>& entry) const {
-    return entry.first;
-  }
-};
 
 template <typename Key, typename T>
 struct KeyCovert {
@@ -80,6 +74,21 @@ class FlatSmallHashMap
 
   /// @brief Copy constructor.
   FlatSmallHashMap(const FlatSmallHashMap& other) : Base(other) {}
+
+  /// Transfers storage from another map, leaving its read-only base empty.
+  FlatSmallHashMap(FlatSmallHashMap&& other) : Base(std::move(other)) {}
+
+  /// Copies another map's storage while keeping this map's base attached.
+  FlatSmallHashMap& operator=(const FlatSmallHashMap& other) {
+    Base::operator=(other);
+    return *this;
+  }
+
+  /// Transfers storage and resets the source map's live read-only base.
+  FlatSmallHashMap& operator=(FlatSmallHashMap&& other) {
+    Base::operator=(std::move(other));
+    return *this;
+  }
 
   /// @brief Returns a const reference to the mapped value for `key`.
   ///

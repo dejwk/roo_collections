@@ -30,12 +30,12 @@ constexpr uint16_t NextRadkePrime16(uint32_t minimum) {
 }
 
 /// Selects fixed storage from the entry count without runtime prime search.
-/// Targets at most 73% occupancy. Counts above 47828 deliberately retain the
+/// Targets at most 75% occupancy. Counts above 49139 deliberately retain the
 /// existing 64000-entry exception in 65519 buckets; empty tables use one slot.
 template <size_t N>
 struct ImmutableFlatSmallHashtableCapacity {
   static_assert(N <= 64000, "Immutable table exceeds maximum supported size");
-  static constexpr uint32_t kRequiredSlots = (100u * N + 72u) / 73u;
+  static constexpr uint32_t kRequiredSlots = (4u * uint32_t(N) + 2u) / 3u;
   static constexpr uint16_t kMaximumSlots = 65519;
   static constexpr uint16_t kSlotCount =
       N == 0

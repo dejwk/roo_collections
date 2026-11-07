@@ -31,10 +31,20 @@ static_assert(impl::ImmutableFlatSmallHashtableCapacity<9>::kSlotCount == 19,
               "dense small capacity");
 static_assert(impl::ImmutableFlatSmallHashtableCapacity<100>::kSlotCount == 139,
               "100 entries need 139 buckets");
-static_assert(impl::ImmutableFlatSmallHashtableCapacity<47828>::kSlotCount ==
+static_assert(impl::ImmutableFlatSmallHashtableCapacity<23>::kSlotCount == 31,
+              "three-quarter occupancy permits the smaller prime");
+static_assert(impl::ImmutableFlatSmallHashtableCapacity<32>::kSlotCount == 43,
+              "32 entries fit in 43 buckets");
+static_assert(
+    impl::ImmutableFlatSmallHashtableCapacity<49139>::kRequiredSlots == 65519,
+    "last count meeting the ordinary occupancy target");
+static_assert(
+    impl::ImmutableFlatSmallHashtableCapacity<49140>::kRequiredSlots == 65520,
+    "first count requiring the maximum-size exception");
+static_assert(impl::ImmutableFlatSmallHashtableCapacity<49139>::kSlotCount ==
                   65519,
-              "largest count within 73 percent occupancy");
-static_assert(impl::ImmutableFlatSmallHashtableCapacity<47829>::kSlotCount ==
+              "largest count within 75 percent occupancy");
+static_assert(impl::ImmutableFlatSmallHashtableCapacity<49140>::kSlotCount ==
                   65519,
               "high occupancy exception begins");
 static_assert(impl::ImmutableFlatSmallHashtableCapacity<64000>::kSlotCount ==

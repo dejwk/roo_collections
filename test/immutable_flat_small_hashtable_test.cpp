@@ -109,9 +109,10 @@ TEST(ImmutableFlatSmallHashtable, EqualityIgnoresInsertionOrder) {
 }
 
 /// Creates distinct keys for checking dense compile-time storage selection.
-constexpr std::array<int, 100> MakeHundredKeys() {
-  std::array<int, 100> entries{};
-  for (int key = 0; key < 100; ++key) entries[key] = key;
+template <size_t N>
+constexpr std::array<int, N> MakeSequentialKeys() {
+  std::array<int, N> entries{};
+  for (size_t key = 0; key < N; ++key) entries[key] = static_cast<int>(key);
   return entries;
 }
 
@@ -119,7 +120,7 @@ constexpr std::array<int, 100> MakeHundredKeys() {
 // bucket count and hash reduction through the common read-only interface.
 TEST(ImmutableFlatSmallHashtable, DenseCompileTimeCapacity) {
   static constexpr ImmutableFlatSmallHashtable table(
-      WithEntries(MakeHundredKeys()));
+      WithEntries(MakeSequentialKeys<100>()));
   static constexpr const ReadOnlyFlatSmallHashtable<int, int>& base = table;
   static_assert(table.ht_len() == 139, "dense compile-time capacity");
   static_assert(base.ht_len() == 139 && base.contains(99), "dense base lookup");
@@ -130,6 +131,27 @@ TEST(ImmutableFlatSmallHashtable, DenseCompileTimeCapacity) {
     EXPECT_TRUE(base.contains(key));
   }
   EXPECT_FALSE(base.contains(100));
+}
+
+// Verifies the tighter three-quarter capacity works in constant evaluation
+// and through the shared read-only base even with every key colliding.
+TEST(ImmutableFlatSmallHashtable, ThreeQuarterCapacityWithCollisions) {
+  static constexpr ImmutableFlatSmallHashtable table(
+      WithEntries(MakeSequentialKeys<32>(), ConstantHash{42}));
+  static constexpr const ReadOnlyFlatSmallHashtable<int, int, ConstantHash>&
+      base = table;
+  static_assert(table.ht_len() == 43, "75 percent capacity");
+  static_assert(table.contains(31) && !table.contains(32), "collision chain");
+  static_assert(base.contains(31) && !base.contains(32),
+                "base collision chain");
+  EXPECT_EQ(table.capacity(), 32);
+  EXPECT_EQ(std::distance(table.begin(), table.end()), 32);
+  for (int key = 0; key < 32; ++key) {
+    EXPECT_TRUE(table.contains(key));
+    EXPECT_TRUE(base.contains(key));
+  }
+  EXPECT_FALSE(table.contains(32));
+  EXPECT_FALSE(base.contains(32));
 }
 
 // Verifies the largest supported table does not truncate its count or bucket

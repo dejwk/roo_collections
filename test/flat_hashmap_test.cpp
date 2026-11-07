@@ -306,6 +306,7 @@ TEST(FlatSmallHashMap, RepetitiveInsertEraseDoesNotGrow) {
   EXPECT_EQ(map.capacity(), 8);
 }
 
+// Verifies clear retains capacity for reuse and explicit compaction shrinks it.
 TEST(FlatSmallHashMap, Clear) {
   FlatSmallHashMap<int, int> map;
 
@@ -319,21 +320,21 @@ TEST(FlatSmallHashMap, Clear) {
   i--;
 
   EXPECT_EQ(map.size(), 1536);
-  EXPECT_EQ(map.capacity(), 2986);
+  EXPECT_EQ(map.capacity(), 3068);
 
   EXPECT_EQ(map.size(), i);
-  EXPECT_EQ(map.capacity(), 2986);
+  EXPECT_EQ(map.capacity(), 3068);
 
   map.clear();
 
   EXPECT_TRUE(map.empty());
   EXPECT_EQ(map.size(), 0);
-  EXPECT_EQ(map.capacity(), 2986);
+  EXPECT_EQ(map.capacity(), 3068);
 
   map.insert({1, 1});
 
   EXPECT_EQ(map.size(), 1);
-  EXPECT_EQ(map.capacity(), 2986);
+  EXPECT_EQ(map.capacity(), 3068);
 
   map.compact();
   EXPECT_EQ(map.size(), 1);

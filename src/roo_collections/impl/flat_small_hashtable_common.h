@@ -34,9 +34,8 @@ inline bool operator==(roo::string_view a, const String& b) { return (b == a); }
 
 namespace roo_collections {
 
-// Slightly higher than conventional 0.7, mostly so that the default-capacity
-// small hashtable (with ht_len 11) can hold 8 elements.
-static constexpr float kMaxFillRatio = 0.73;
+// Shared 3/4 occupancy target; the default eleven buckets hold eight entries.
+static constexpr float kMaxFillRatio = 3.0f / 4.0f;
 
 namespace impl {
 
@@ -56,7 +55,7 @@ struct FlatSmallHashtableCapacity {
 
   /// Returns the mutable entry limit, retaining the final-capacity exception.
   constexpr uint16_t mutableCapacity() const {
-    return slot_count == 65519 ? 64000 : uint32_t(slot_count) * 73u / 100u;
+    return slot_count == 65519 ? 64000 : uint32_t(slot_count) * 3u / 4u;
   }
 
   uint64_t reciprocal;
@@ -106,10 +105,10 @@ ROO_COLLECTIONS_CONSTEXPR14 uint16_t fastmod(uint32_t n, int idx) {
   return impl::kMutableFlatSmallHashtableCapacities[idx].reduceHash(n);
 }
 
-// Finds the tightest candidate meeting the 73% target, clamping to the final
+// Finds the tightest candidate meeting the 75% target, clamping to the final
 // high-occupancy capacity for large hints. All intermediate arithmetic is wide.
 ROO_COLLECTIONS_CONSTEXPR14 int initialCapacityIdx(uint16_t size_hint) {
-  uint32_t required = (100u * size_hint + 72u) / 73u;
+  uint32_t required = (4u * uint32_t(size_hint) + 2u) / 3u;
   int first = 0;
   int last = kRadkePrimeCount - 1;
   while (first < last) {

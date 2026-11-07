@@ -73,19 +73,51 @@ TEST(FlatSmallHashtableCapacity, EveryHintSelectsTightestCapacity) {
   }
 }
 
+// Verifies the live-entry limit is the greatest count within three-quarter
+// occupancy for every candidate, with the existing maximum-size exception.
+TEST(FlatSmallHashtableCapacity, ThreeQuarterEntryLimits) {
+  EXPECT_FLOAT_EQ(kMaxFillRatio, 0.75f);
+  for (const auto& capacity : impl::kMutableFlatSmallHashtableCapacities) {
+    uint32_t slots = capacity.slot_count;
+    uint32_t limit = capacity.mutableCapacity();
+    if (slots == 65519) {
+      EXPECT_EQ(limit, 64000u);
+    } else {
+      EXPECT_LE(4u * limit, 3u * slots) << slots;
+      EXPECT_GT(4u * (limit + 1), 3u * slots) << slots;
+    }
+  }
+}
+
+// Verifies 32 entries fit in 43 buckets at the new load limit, and only a new
+// distinct entry beyond that limit triggers growth.
+TEST(FlatSmallHashtableCapacity, ThreeQuarterBoundary) {
+  FlatSmallHashMap<int, int> map(32);
+  ASSERT_EQ(map.ht_len(), 43);
+  ASSERT_EQ(map.capacity(), 32);
+  for (int key = 0; key < 32; ++key) map[key] = key * 10;
+  EXPECT_EQ(map.ht_len(), 43);
+  EXPECT_FALSE(map.insert({31, 999}).second);
+  EXPECT_EQ(map.ht_len(), 43);
+  map[32] = 320;
+  EXPECT_EQ(map.ht_len(), 107);
+  EXPECT_EQ(map.capacity(), 80);
+  for (int key = 0; key <= 32; ++key) EXPECT_EQ(map.at(key), key * 10);
+}
+
 // Verifies explicit size hints save buckets for both maps and sets without
 // changing default construction or allowing an early rehash before the hint.
 TEST(FlatSmallHashtableCapacity, SizeHintsUseDenseCapacities) {
   FlatSmallHashMap<int, int> map(100);
   const ReadOnlyFlatSmallHashMap<int, int>& base = map;
   EXPECT_EQ(map.ht_len(), 151);
-  EXPECT_EQ(map.capacity(), 110);
+  EXPECT_EQ(map.capacity(), 113);
   for (int key = 0; key < 100; ++key) map[key] = key * 10;
   EXPECT_EQ(base.ht_len(), 151);
   EXPECT_EQ(base.at(99), 990);
   FlatSmallHashSet<int> set(1000);
   EXPECT_EQ(set.ht_len(), 1447);
-  EXPECT_EQ(set.capacity(), 1056);
+  EXPECT_EQ(set.capacity(), 1085);
   for (int key = 0; key < 1000; ++key) set.insert(key);
   EXPECT_EQ(set.ht_len(), 1447);
   FlatSmallHashMap<int, int> default_map;
@@ -108,21 +140,21 @@ TEST(FlatSmallHashtableCapacity, KnownRangesUseDenseCapacities) {
 // capacity before rounding, and duplicates in a full table do not resize it.
 TEST(FlatSmallHashtableCapacity, AutomaticGrowthDoublesUsableCapacity) {
   FlatSmallHashMap<int, int> map(100);
-  for (int key = 0; key < 110; ++key) map[key] = key * 10;
+  for (int key = 0; key < 113; ++key) map[key] = key * 10;
   EXPECT_EQ(map.ht_len(), 151);
   EXPECT_FALSE(map.insert({1, 999}).second);
   EXPECT_EQ(map.at(1), 10);
   EXPECT_EQ(map.ht_len(), 151);
-  map[110] = 1100;
+  map[113] = 1130;
   EXPECT_EQ(map.ht_len(), 359);
-  EXPECT_EQ(map.capacity(), 262);
-  for (int key = 0; key <= 110; ++key) EXPECT_EQ(map.at(key), key * 10);
+  EXPECT_EQ(map.capacity(), 269);
+  for (int key = 0; key <= 113; ++key) EXPECT_EQ(map.at(key), key * 10);
   FlatSmallHashSet<int> set(16);
-  for (int key = 0; key < 16; ++key) set.insert(key);
+  for (int key = 0; key < 17; ++key) set.insert(key);
   EXPECT_EQ(set.ht_len(), 23);
-  set.insert(16);
+  set.insert(17);
   EXPECT_EQ(set.ht_len(), 47);
-  EXPECT_EQ(set.capacity(), 34);
+  EXPECT_EQ(set.capacity(), 35);
 }
 
 // Verifies doubling does not overflow when crossing the 16-bit midpoint or
@@ -161,14 +193,14 @@ struct IdentityHash {
 // when erased entries leave enough room, instead of growing or shrinking.
 TEST(FlatSmallHashtableCapacity, TombstoneCleanupRetainsStorage) {
   FlatSmallHashMap<int, int, IdentityHash> map(100);
-  for (int key = 0; key < 110; ++key) map[key] = key * 10;
+  for (int key = 0; key < 113; ++key) map[key] = key * 10;
   for (int key = 0; key < 50; ++key) ASSERT_TRUE(map.erase(key));
   const int* address = &map.at(100);
   map[200] = 2000;
   EXPECT_EQ(map.ht_len(), 151);
-  EXPECT_EQ(map.capacity(), 110);
+  EXPECT_EQ(map.capacity(), 113);
   EXPECT_EQ(&map.at(100), address);
-  for (int key = 50; key < 110; ++key) EXPECT_EQ(map.at(key), key * 10);
+  for (int key = 50; key < 113; ++key) EXPECT_EQ(map.at(key), key * 10);
   EXPECT_EQ(map.at(200), 2000);
   EXPECT_FALSE(map.contains(0));
 }
@@ -183,7 +215,7 @@ TEST(FlatSmallHashtableCapacity, ExplicitCompactionSelectsTightestCapacity) {
   EXPECT_EQ(base.ht_len(), 1447);
   map.compact();
   EXPECT_EQ(base.ht_len(), 151);
-  EXPECT_EQ(base.capacity(), 110);
+  EXPECT_EQ(base.capacity(), 113);
   int sum = 0;
   for (const auto& entry : base) {
     EXPECT_EQ(entry.second, entry.first * 10);

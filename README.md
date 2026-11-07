@@ -38,7 +38,7 @@ candidate sizes including the one-slot empty sentinel. The primes and their
 reciprocal descriptors each have one shared constant copy across translation units.
 
 A size hint selects the smallest candidate accommodating the requested entry
-count at 73% occupancy. For example, a 100-entry hint uses 151 buckets instead
+count at 75% occupancy. For example, a 100-entry hint uses 151 buckets instead
 of the previous 251; a 1000-entry hint uses 1447 instead of 2039. Default
 construction still reserves space for eight entries in eleven buckets.
 
@@ -199,13 +199,13 @@ The helpers deduce the count from an array reference. `std::array` inputs are
 also accepted, including `std::array<Entry, 0>{}` for an empty table. The entry
 count is part of the type, and `capacity()` reports that fixed count; `ht_len()`
 reports the bucket count. Immutable owners compute the smallest prime congruent
-to 3 modulo 4 that provides at most 73% occupancy, using integer arithmetic and
+to 3 modulo 4 that provides at most 75% occupancy, using integer arithmetic and
 compile-time prime search. For example, 100 entries use 139 buckets, compared
 with 151 selected by a mutable table's size hint. The bucket count and
 modulo reciprocal are constants; lookup performs no prime search or division,
 and immutable-only code needs no stored list of candidate primes.
 
-Empty tables retain their one-slot sentinel. Above 47828 entries, immutable
+Empty tables retain their one-slot sentinel. Above 49139 entries, immutable
 owners deliberately preserve the existing higher-occupancy exception: they use
 65519 buckets and continue to support at most 64000 entries. Mutable tables use
 the denser static candidates described above.
@@ -241,7 +241,7 @@ Here is how `roo_collections` compares to the most common embedded alternatives:
 
 All flat hash maps trade some RAM for speed by leaving empty slots in their arrays. `roo_collections` manages this exceptionally well for small data types.
 
-* **High Max Capacity:** `roo_collections` uses a maximum load factor of **73%** before it doubles in size. This means its memory overhead fluctuates between **~1.37x** (right before a rehash) and **~2.74x** (worst-case, right after a rehash). 
+* **Target Occupancy:** `roo_collections` normally allows **75%** live occupancy before growth. Ignoring bucket rounding, backing-array overhead is about **1.33x** just before growth and **2.67x** just after doubling. Discrete bucket sizes and small default reservations can increase this further.
 * **Beats Standard Robin Hood:** Many popular Robin Hood maps (like `ska` or `tsl`) default to a 50% max load factor, meaning they fluctuate between 2x and 4x overhead. Out of the box, `roo_collections` operates with a tighter memory footprint.
 
 ### ⚖️ Trade-offs to Consider

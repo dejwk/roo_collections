@@ -369,7 +369,9 @@ class FlatSmallHashtable
   /// @brief Inserts `val` if key is not present.
   /// @return Pair of iterator and insertion flag.
   std::pair<Iterator, bool> insert(Entry val) {
-    Key key = key_fn_(val);
+    // The argument owns the entry until placement, so borrowing avoids a
+    // second owning-key copy (and allocation for std::string keys).
+    const Key& key = key_fn_(val);
     size_t hash = hash_fn_(key);
     uint16_t pos = capacity_info_->reduceHash(hash);
     if (states_[pos] == EMPTY && used_ < resize_threshold_) {

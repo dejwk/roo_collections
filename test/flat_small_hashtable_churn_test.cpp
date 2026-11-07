@@ -116,6 +116,39 @@ TEST(FlatSmallHashtableChurn, CollisionChurnMatchesReference) {
   }
 }
 
+struct CopyCountedKey {
+  static int copies;
+  uint32_t id = 0;
+  CopyCountedKey() = default;
+  explicit CopyCountedKey(uint32_t value) : id(value) {}
+  CopyCountedKey(const CopyCountedKey& other) : id(other.id) { ++copies; }
+  CopyCountedKey(CopyCountedKey&&) = default;
+  CopyCountedKey& operator=(const CopyCountedKey&) = default;
+  CopyCountedKey& operator=(CopyCountedKey&&) = default;
+  bool operator==(const CopyCountedKey& other) const { return id == other.id; }
+};
+int CopyCountedKey::copies = 0;
+
+struct CountedKeyHash {
+  size_t operator()(const CopyCountedKey& key) const { return key.id; }
+};
+
+// Verifies insertion borrows its owned argument's key instead of introducing
+// a second owning-key copy, including across growth and duplicate detection.
+TEST(FlatSmallHashtableChurn, InsertDoesNotCopyTheOwnedKey) {
+  FlatSmallHashMap<CopyCountedKey, int, CountedKeyHash> map(1);
+  for (unsigned key = 0; key < 20; ++key) {
+    std::pair<CopyCountedKey, int> entry{CopyCountedKey(key), int(key)};
+    CopyCountedKey::copies = 0;
+    ASSERT_TRUE(map.insert(std::move(entry)).second);
+    EXPECT_EQ(CopyCountedKey::copies, 0);
+  }
+  std::pair<CopyCountedKey, int> duplicate{CopyCountedKey(19), 999};
+  CopyCountedKey::copies = 0;
+  EXPECT_FALSE(map.insert(std::move(duplicate)).second);
+  EXPECT_EQ(CopyCountedKey::copies, 0);
+}
+
 // Verifies iterators still observe storage changes that do not
 // rehash, skip tombstones, preserve owner identity, and handle empty sentinels.
 TEST(FlatSmallHashtableChurn, IterationAcrossInPlaceMutations) {

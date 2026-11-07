@@ -195,6 +195,16 @@ cc_test(
 )
 
 cc_test(
+    name = "flat_small_hashtable_capacity_test",
+    size = "small",
+    srcs = ["test/flat_small_hashtable_capacity_test.cpp"],
+    deps = [
+        ":roo_collections",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "flat_small_hashtable_churn_test",
     size = "small",
     srcs = ["test/flat_small_hashtable_churn_test.cpp"],

@@ -208,8 +208,8 @@ TEST(ReadOnlyFlatSmallHashtable, SetInterface) {
             static_cast<const NumberSet&>(kEmpty).end());
 }
 
-// Verifies maps and sets use dense immutable buckets while mutable tables keep
-// their growth sequence, with correct common lookup, copying and iteration.
+// Verifies maps and sets with dense buckets support common lookup, copying
+// and iteration across immutable and explicitly sized mutable owners.
 TEST(ReadOnlyFlatSmallHashtable, DenseImmutableMapsAndSets) {
   static constexpr ImmutableFlatSmallHashMap map(
       WithMapping<int, int>({{1, 10},
@@ -229,7 +229,7 @@ TEST(ReadOnlyFlatSmallHashtable, DenseImmutableMapsAndSets) {
   static_assert(map_base.at(9) == 90 && set_base.contains(9), "base lookup");
   static_assert(!map_base.contains(10) && !set_base.contains(10), "base miss");
   FlatSmallHashMap<int, int> dynamic(9);
-  EXPECT_EQ(dynamic.ht_len(), 31);
+  EXPECT_EQ(dynamic.ht_len(), 19);
   EXPECT_EQ(map_base.ht_len(), 19);
   auto copy = map;
   auto moved = std::move(copy);

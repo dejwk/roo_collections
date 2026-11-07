@@ -85,7 +85,7 @@ TEST(FlatSmallHashtablePrimitives, ExactPrimeReducersMatchModulo) {
 // Verifies reciprocal reduction matches modulo for every supported capacity,
 // including the small capacities used by compile-time tables.
 TEST(FlatSmallHashtablePrimitives, FastmodMatchesModulo) {
-  for (int idx = 0; idx < 16; ++idx) {
+  for (int idx = 0; idx < kRadkePrimeCount; ++idx) {
     uint32_t prime = kRadkePrimes[idx];
     uint32_t boundaries[] = {0, 1, 2, prime - 1, prime, prime + 1, UINT32_MAX};
     for (uint32_t n : boundaries) {

@@ -131,15 +131,14 @@ class FlatSmallHashtable
       : FlatSmallHashtable(8, hash_fn, key_fn, key_cmp_fn) {}
 
   /// @brief Constructs an empty table sized for `size_hint` elements.
+  /// Chooses the smallest static capacity accommodating the hint.
   /// @param size_hint Expected number of items.
   FlatSmallHashtable(uint16_t size_hint, HashFn hash_fn = HashFn(),
                      KeyFn key_fn = KeyFn(), KeyCmpFn key_cmp_fn = KeyCmpFn())
       : ReadOnly(hash_fn, key_fn, key_cmp_fn) {
     int capacity_idx = initialCapacityIdx(size_hint);
     capacity_info_ = &impl::kMutableFlatSmallHashtableCapacities[capacity_idx];
-    resize_threshold_ = capacity_idx == 15
-                            ? 64000
-                            : static_cast<uint16_t>(ht_len() * kMaxFillRatio);
+    resize_threshold_ = capacity_info_->mutableCapacity();
     buffer_ = ht_len() > 1 ? new Entry[ht_len()] : nullptr;
     states_ = ht_len() > 1 ? new State[ht_len()] : &dummy_empty_state_;
     std::fill(&states_[0], &states_[ht_len()], State(EMPTY));
@@ -354,10 +353,10 @@ class FlatSmallHashtable
   }
 
   /// @brief Rebuilds the table to remove tombstones and shrink capacity.
+  /// Chooses the smallest static capacity accommodating the current size.
   void compact() {
     int capacity_idx = initialCapacityIdx(size());
     if (kRadkePrimes[capacity_idx] == ht_len() && erased_ == 0) return;
-    assert(capacity_idx < 15);  // Or, exceeded maximum hashtable size.
     FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn> newt(
         size(), hash_fn_, key_fn_, key_cmp_fn_);
     for (auto& e : *this) {
@@ -372,7 +371,7 @@ class FlatSmallHashtable
     // The argument owns the entry until placement, so borrowing avoids a
     // second owning-key copy (and allocation for std::string keys).
     const Key& key = key_fn_(val);
-    size_t hash = hash_fn_(key);
+    uint32_t hash = hash_fn_(key);
     uint16_t pos = capacity_info_->reduceHash(hash);
     if (states_[pos] == EMPTY && used_ < resize_threshold_) {
       return insertAt(pos, val, hash);
@@ -481,14 +480,19 @@ class FlatSmallHashtable
     return std::min<uint32_t>(cap - 1, (resize_threshold_ + cap + 1) / 2);
   }
 
-  /// Grows for live entries or reclaims tombstones using the existing sizing
-  /// policy.
+  /// Grows for live entries or reclaims tombstones without shrinking storage.
   void rebuildForInsert() {
     if (empty() && erased_ > 0) {
       clear();
       return;
     }
-    FlatSmallHashtable newt(size() + 1, hash_fn_, key_fn_, key_cmp_fn_);
+    uint32_t size_hint = capacity();
+    if (size() >= capacity()) {
+      size_hint =
+          std::min<uint32_t>(64000, std::max<uint32_t>(1, 2u * capacity()));
+    }
+    FlatSmallHashtable newt(static_cast<uint16_t>(size_hint), hash_fn_, key_fn_,
+                            key_cmp_fn_);
     assert(newt.capacity() >= size() + 1);
     for (auto& entry : *this) newt.insert(std::move(entry));
     if (newt.capacity() == capacity()) {

@@ -30,13 +30,35 @@ Mixing makes lookup less sensitive to structured missing-key ranges, at the
 cost of hash computation and potentially more probes for previously
 collision-free keys. It does not guarantee faster lookups for every workload.
 
-## Erased bucket reuse
+## Mutable capacity selection
+
+Mutable tables, maps and sets use the largest primes congruent to 3 modulo 4
+below `2^(k/4)`, for `k = 1..64`. Repeated small values are omitted, leaving 50
+candidate sizes including the one-slot empty sentinel. The primes and their
+reciprocal descriptors each have one shared constant copy across translation units.
+
+A size hint selects the smallest candidate accommodating the requested entry
+count at 73% occupancy. For example, a 100-entry hint uses 151 buckets instead
+of the previous 251; a 1000-entry hint uses 1447 instead of 2039. Default
+construction still reserves space for eight entries in eleven buckets.
+
+Automatic growth doubles the usable entry capacity, then rounds up to a table
+candidate. Tombstone cleanup retains the current capacity and backing storage;
+`compact()` explicitly selects the smallest candidate for the remaining live
+entries. `clear()` retains the allocated capacity. Iteration scans the bucket
+array, so tighter hinted or compacted tables also scan fewer empty buckets.
+The final 65519-bucket candidate retains the existing 64000-entry limit and
+higher-occupancy exception.
 
 Insertion reuses erased buckets after checking the probe chain for duplicates.
 The live-entry limit controls growth; a separate occupancy limit allows
 roughly half the remaining buckets to hold tombstones before cleanup. At
 least one bucket stays empty so unsuccessful lookups terminate. Repeatedly
 erasing and reinserting the same keys therefore requires no table rebuilds.
+
+For very small known sizes, pass a size hint: the default eleven buckets still
+need scanning even with one entry. Caching `end()` outside a traversal can
+also reduce repeated metadata loads when the loop body might modify memory.
 
 ## Common read-only interfaces
 
@@ -178,15 +200,15 @@ also accepted, including `std::array<Entry, 0>{}` for an empty table. The entry
 count is part of the type, and `capacity()` reports that fixed count; `ht_len()`
 reports the bucket count. Immutable owners compute the smallest prime congruent
 to 3 modulo 4 that provides at most 73% occupancy, using integer arithmetic and
-compile-time prime search. For example, 100 entries use 139 buckets rather than
-the 251 buckets selected by the mutable growth sequence. The bucket count and
+compile-time prime search. For example, 100 entries use 139 buckets, compared
+with 151 selected by a mutable table's size hint. The bucket count and
 modulo reciprocal are constants; lookup performs no prime search or division,
 and immutable-only code needs no stored list of candidate primes.
 
 Empty tables retain their one-slot sentinel. Above 47828 entries, immutable
 owners deliberately preserve the existing higher-occupancy exception: they use
-65519 buckets and continue to support at most 64000 entries. Mutable tables keep
-their existing growth sizes and occupancy thresholds.
+65519 buckets and continue to support at most 64000 entries. Mutable tables use
+the denser static candidates described above.
 
 Duplicate keys are rejected: constexpr construction fails to compile, and
 runtime construction aborts, including with `NDEBUG`. Entries must be default

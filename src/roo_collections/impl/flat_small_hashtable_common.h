@@ -38,38 +38,6 @@ namespace roo_collections {
 // small hashtable (with ht_len 11) can hold 8 elements.
 static constexpr float kMaxFillRatio = 0.73;
 
-// Sequence of the largest primes of the format 4n+3, less than 2^k,
-// for k = 2 ... 16. When used as hash map capacities, they are known to
-// enable quadratic residue search to visit the entire array. Additionally,
-// we keep the value '1' at the beginning, as the sentinel that indicates
-// an empty hashtable, with no dynamically allocated buffer.
-static constexpr uint16_t kRadkePrimes[] = {
-    0x1,   0x3,   0x7,   0xb,   0x1f,   0x3b,   0x7f,   0xfb,
-    0x1f7, 0x3fb, 0x7f7, 0xffb, 0x1fff, 0x3feb, 0x7fcf, 0xffef};
-
-// These are precalculated (2^48 - 1) / the corresponding radke prime + 1.
-// See
-// https://lemire.me/blog/2019/02/08/faster-remainders-when-the-divisor-is-a-constant-beating-compilers-and-libdivide/
-static constexpr uint64_t kRadkePrimeInverts[] = {
-    0x1000000000000, 0x555555555556, 0x24924924924a, 0x1745d1745d18,
-    0x84210842109,   0x456c797dd4a,  0x20408102041,  0x105197f7d74,
-    0x824a4e60b4,    0x4050647d9e,   0x202428adc4,   0x100501907e,
-    0x800400201,     0x401506e65,    0x200c44b25,    0x100110122};
-
-// Returns n % kRadkePrimes[idx].
-ROO_COLLECTIONS_CONSTEXPR14 uint16_t fastmod(uint32_t n, int idx) {
-  uint64_t lowbits = (kRadkePrimeInverts[idx] * n) & 0x0000FFFFFFFFFFFF;
-  return (lowbits * kRadkePrimes[idx]) >> 48;
-}
-
-ROO_COLLECTIONS_CONSTEXPR14 int initialCapacityIdx(uint16_t size_hint) {
-  uint32_t ht_len = (uint32_t)(((float)size_hint) / kMaxFillRatio) + 1;
-  for (int radkeIdx = 0; radkeIdx < 15; ++radkeIdx) {
-    if (kRadkePrimes[radkeIdx] >= ht_len) return radkeIdx;
-  }
-  return 15;
-}
-
 namespace impl {
 
 /// Shares a bucket count and its precomputed reducer with read-only clients.
@@ -86,33 +54,74 @@ struct FlatSmallHashtableCapacity {
     return (lowbits * slot_count) >> 48;
   }
 
+  /// Returns the mutable entry limit, retaining the final-capacity exception.
+  constexpr uint16_t mutableCapacity() const {
+    return slot_count == 65519 ? 64000 : uint32_t(slot_count) * 73u / 100u;
+  }
+
   uint64_t reciprocal;
   uint16_t slot_count;
 };
 
-// Mutable tables retain the existing growth sequence. Immutable tables provide
-// a descriptor computed for their exact entry count instead.
-static constexpr FlatSmallHashtableCapacity
-    kMutableFlatSmallHashtableCapacities[] = {
-        FlatSmallHashtableCapacity(kRadkePrimes[0]),
-        FlatSmallHashtableCapacity(kRadkePrimes[1]),
-        FlatSmallHashtableCapacity(kRadkePrimes[2]),
-        FlatSmallHashtableCapacity(kRadkePrimes[3]),
-        FlatSmallHashtableCapacity(kRadkePrimes[4]),
-        FlatSmallHashtableCapacity(kRadkePrimes[5]),
-        FlatSmallHashtableCapacity(kRadkePrimes[6]),
-        FlatSmallHashtableCapacity(kRadkePrimes[7]),
-        FlatSmallHashtableCapacity(kRadkePrimes[8]),
-        FlatSmallHashtableCapacity(kRadkePrimes[9]),
-        FlatSmallHashtableCapacity(kRadkePrimes[10]),
-        FlatSmallHashtableCapacity(kRadkePrimes[11]),
-        FlatSmallHashtableCapacity(kRadkePrimes[12]),
-        FlatSmallHashtableCapacity(kRadkePrimes[13]),
-        FlatSmallHashtableCapacity(kRadkePrimes[14]),
-        FlatSmallHashtableCapacity(kRadkePrimes[15]),
+/// Keeps one shared capacity table across translation units, including C++11.
+/// Template static members provide shared storage before inline variables are
+/// available, and expand each prime into its compile-time reciprocal once.
+template <uint16_t... Slots>
+struct FlatSmallHashtableCapacityTable {
+  static constexpr uint16_t kPrimes[] = {Slots...};
+
+  static constexpr FlatSmallHashtableCapacity kCapacities[] = {
+      FlatSmallHashtableCapacity(Slots)...};
 };
 
+template <uint16_t... Slots>
+constexpr uint16_t FlatSmallHashtableCapacityTable<Slots...>::kPrimes[];
+
+template <uint16_t... Slots>
+constexpr FlatSmallHashtableCapacity
+    FlatSmallHashtableCapacityTable<Slots...>::kCapacities[];
+
+// Largest primes congruent to 3 modulo 4 strictly below 2^(k/4), for k = 1..64.
+// Repeated small primes are omitted; one is the no-allocation empty sentinel.
+// Immutable tables continue to select their exact prime independently.
+using MutableFlatSmallHashtableCapacityTable = FlatSmallHashtableCapacityTable<
+    1, 3, 7, 11, 19, 23, 31, 43, 47, 59, 71, 83, 107, 127, 151, 179, 211, 251,
+    283, 359, 419, 503, 607, 719, 859, 1019, 1187, 1447, 1699, 2039, 2423, 2887,
+    3407, 4091, 4831, 5791, 6883, 8191, 9739, 11579, 13763, 16363, 19483, 23167,
+    27551, 32719, 38959, 46327, 55103, 65519>;
+
+static constexpr const auto& kMutableFlatSmallHashtableCapacities =
+    MutableFlatSmallHashtableCapacityTable::kCapacities;
+
 }  // namespace impl
+
+static constexpr const auto& kRadkePrimes =
+    impl::MutableFlatSmallHashtableCapacityTable::kPrimes;
+
+static constexpr int kRadkePrimeCount =
+    sizeof(kRadkePrimes) / sizeof(kRadkePrimes[0]);
+
+// Returns n % kRadkePrimes[idx] using the shared precomputed reciprocal.
+ROO_COLLECTIONS_CONSTEXPR14 uint16_t fastmod(uint32_t n, int idx) {
+  return impl::kMutableFlatSmallHashtableCapacities[idx].reduceHash(n);
+}
+
+// Finds the tightest candidate meeting the 73% target, clamping to the final
+// high-occupancy capacity for large hints. All intermediate arithmetic is wide.
+ROO_COLLECTIONS_CONSTEXPR14 int initialCapacityIdx(uint16_t size_hint) {
+  uint32_t required = (100u * size_hint + 72u) / 73u;
+  int first = 0;
+  int last = kRadkePrimeCount - 1;
+  while (first < last) {
+    int middle = first + (last - first) / 2;
+    if (kRadkePrimes[middle] < required) {
+      first = middle + 1;
+    } else {
+      last = middle;
+    }
+  }
+  return first;
+}
 
 template <typename InputIt>
 inline uint16_t initialCapacityHint(InputIt first, InputIt last,

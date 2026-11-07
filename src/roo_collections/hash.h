@@ -11,6 +11,17 @@
 
 namespace roo_collections {
 
+/// @brief Mixes a 32-bit integer with MurmurHash3's fmix32 finalizer.
+/// Supports constant evaluation in C++14+ and runtime use in C++11. This is
+/// an unseeded integer permutation, not full MurmurHash3 of four bytes.
+ROO_COLLECTIONS_CONSTEXPR14 uint32_t Murmur3Fmix32(uint32_t value) noexcept {
+  value ^= value >> 16;
+  value *= 0x85ebca6b;
+  value ^= value >> 13;
+  value *= 0xc2b2ae35;
+  return value ^ (value >> 16);
+}
+
 namespace internal {
 
 /// Mixes one four-byte block for MurmurHash3.
@@ -46,13 +57,7 @@ ROO_COLLECTIONS_CONSTEXPR14 uint32_t Murmur3_32Bytes(const Byte* key,
     k = (k << 8) | static_cast<unsigned char>(key[offset + i - 1]);
   }
   h ^= Murmur32Scramble(k);
-  h ^= len;
-  h ^= h >> 16;
-  h *= 0x85ebca6b;
-  h ^= h >> 13;
-  h *= 0xc2b2ae35;
-  h ^= h >> 16;
-  return h;
+  return Murmur3Fmix32(h ^ len);
 }
 
 }  // namespace internal

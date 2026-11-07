@@ -11,6 +11,7 @@
 #include <initializer_list>
 #include <iterator>
 #include <memory>
+#include <type_traits>
 
 #include "roo_backport.h"
 #include "roo_backport/string_view.h"
@@ -91,8 +92,29 @@ inline uint16_t initialCapacityHint(InputIt first, InputIt last) {
       first, last, typename std::iterator_traits<InputIt>::iterator_category());
 }
 
-template <typename Key>
+/// Default hash policy; integral and enum keys use Murmur3's fmix32 mixer.
+/// Integral and enum keys support constant evaluation in C++14+.
+template <typename Key, typename Enable = void>
 struct DefaultHashFn : public std::hash<Key> {};
+
+/// Mixes integral and enum keys into a 32-bit hash, independent of size_t
+/// width. Keys up to 32 bits convert to uint32_t before mixing. For wider keys,
+/// the mixed upper 32 bits are XORed into the lower word before final mixing.
+/// These hashes intentionally differ from std::hash.
+template <typename Key>
+struct DefaultHashFn<Key,
+                     typename std::enable_if<std::is_integral<Key>::value ||
+                                             std::is_enum<Key>::value>::type> {
+  /// Mixes @p key, including the upper word of 64-bit integral/enum keys.
+  ROO_COLLECTIONS_CONSTEXPR14 size_t operator()(Key key) const noexcept {
+    uint32_t value = static_cast<uint32_t>(key);
+    if (sizeof(Key) > sizeof(uint32_t)) {
+      value ^= Murmur3Fmix32(
+          static_cast<uint32_t>(static_cast<uint64_t>(key) >> 32));
+    }
+    return Murmur3Fmix32(value);
+  }
+};
 
 template <>
 struct DefaultHashFn<::roo::string_view> {

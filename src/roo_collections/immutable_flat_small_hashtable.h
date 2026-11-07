@@ -25,17 +25,6 @@ namespace roo_collections {
 template <typename Key, typename Enable = void>
 struct ImmutableHashFn : public DefaultHashFn<Key> {};
 
-/// @brief Hashes integral and enum keys without relying on std::hash constexpr.
-template <typename Key>
-struct ImmutableHashFn<
-    Key, typename std::enable_if<std::is_integral<Key>::value ||
-                                 std::is_enum<Key>::value>::type> {
-  /// Returns the key converted to the platform's unsigned hash width.
-  constexpr size_t operator()(Key key) const {
-    return static_cast<size_t>(key);
-  }
-};
-
 namespace internal {
 
 /// Copies entries during constant evaluation, including pre-C++20 std::pair.

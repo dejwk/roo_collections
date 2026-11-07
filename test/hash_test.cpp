@@ -3,9 +3,11 @@
 #include <stdint.h>
 
 #include <string>
+#include <utility>
 
 #include "gtest/gtest.h"
-#include "roo_collections/flat_small_hashtable.h"
+#include "roo_collections/flat_small_hash_map.h"
+#include "roo_collections/immutable_flat_small_hash_map.h"
 
 namespace roo_collections {
 
@@ -60,6 +62,65 @@ uint32_t referenceMurmur3_32(const void* key, size_t len, uint32_t seed) {
 }
 
 }  // namespace
+
+// Verifies the public finalizer's known outputs at compile time and runtime,
+// including zero, the sign bit, the maximum word, and an arbitrary bit pattern.
+TEST(Hash, Fmix32KnownVectors) {
+  static constexpr uint32_t inputs[] = {0u,          1u,          2u,
+                                        0x80000000u, 0xffffffffu, 0x12345678u};
+  static constexpr uint32_t expected[] = {
+      0u, 0x514e28b7u, 0x30f4c306u, 0x6d3c65a0u, 0x81f16f39u, 0xe37cd1bcu};
+  static_assert(Murmur3Fmix32(1) == 0x514e28b7u, "constexpr finalizer");
+  for (size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); ++i) {
+    EXPECT_EQ(Murmur3Fmix32(inputs[i]), expected[i]);
+  }
+}
+
+// Verifies the default policy mixes all supported integer widths and enums,
+// preserves upper-word influence, and works during constant evaluation.
+TEST(Hash, DefaultIntegralAndEnumHashUsesFmix32) {
+  enum class Small : int8_t { kNegative = -1, kOne = 1 };
+  enum class Wide : uint64_t { kUpper = uint64_t{1} << 32 };
+  static_assert(DefaultHashFn<int>()(1) == 0x514e28b7u, "default is mixed");
+  static_assert(DefaultHashFn<Small>()(Small::kNegative) == 0x81f16f39u,
+                "signed enum conversion");
+  static_assert(DefaultHashFn<Wide>()(Wide::kUpper) == 0x2fef5c8fu,
+                "wide enum includes its upper word");
+  EXPECT_EQ(DefaultHashFn<bool>()(false), 0u);
+  EXPECT_EQ(DefaultHashFn<bool>()(true), 0x514e28b7u);
+  EXPECT_EQ(DefaultHashFn<int8_t>()(-1), 0x81f16f39u);
+  EXPECT_EQ(DefaultHashFn<uint8_t>()(1), 0x514e28b7u);
+  EXPECT_EQ(DefaultHashFn<int16_t>()(-1), 0x81f16f39u);
+  EXPECT_EQ(DefaultHashFn<uint16_t>()(1), 0x514e28b7u);
+  EXPECT_EQ(DefaultHashFn<int32_t>()(-1), 0x81f16f39u);
+  EXPECT_EQ(DefaultHashFn<uint32_t>()(0x80000000u), 0x6d3c65a0u);
+  EXPECT_EQ(DefaultHashFn<uint64_t>()(uint64_t{1} << 32), 0x2fef5c8fu);
+  EXPECT_EQ(DefaultHashFn<uint64_t>()(0x100000001ULL), 0x3d8ed02fu);
+  EXPECT_EQ(DefaultHashFn<uint64_t>()(0x123456789abcdef0ULL), 0xf7b45ce0u);
+  EXPECT_EQ(DefaultHashFn<int64_t>()(-1), 0xce2d4699u);
+  EXPECT_EQ(DefaultHashFn<Small>()(Small::kOne), 0x514e28b7u);
+  EXPECT_EQ(DefaultHashFn<Wide>()(Wide::kUpper), 0x2fef5c8fu);
+}
+
+// Verifies constexpr construction and runtime lookup agree with mutable maps
+// when default hashes mix both words of wide keys.
+TEST(Hash, DefaultMixedHashWorksAcrossMapOwners) {
+  static constexpr std::pair<uint64_t, int> entries[] = {
+      {0, 10}, {1, 20}, {uint64_t{1} << 32, 30}, {UINT64_MAX, 40}};
+  static constexpr ImmutableFlatSmallHashMap<uint64_t, int, 4> immutable(
+      entries);
+  static_assert(immutable.at(uint64_t{1} << 32) == 30,
+                "constexpr mixed lookup");
+  static_assert(immutable.at(UINT64_MAX) == 40, "constexpr wide lookup");
+  static_assert(!immutable.contains(0x100000001ULL), "constexpr mixed miss");
+  FlatSmallHashMap<uint64_t, int> mutable_map{
+      {0, 10}, {1, 20}, {uint64_t{1} << 32, 30}, {UINT64_MAX, 40}};
+  for (const auto& entry : immutable) {
+    EXPECT_EQ(immutable.at(entry.first), entry.second);
+    EXPECT_EQ(mutable_map.at(entry.first), entry.second);
+  }
+  EXPECT_FALSE(mutable_map.contains(0x100000001ULL));
+}
 
 // Verifies murmur3_32 matches the standard x86_32 MurmurHash3 reference across
 // both tail-only and full-block inputs.

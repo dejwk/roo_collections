@@ -274,28 +274,25 @@ TEST(FlatSmallHashMap, RepetitiveInsertEraseOneElementDoesNotGrow) {
   EXPECT_EQ(map.capacity(), 8);
 }
 
+// Verifies const-iterator erasure returns the next entry and removes every
+// element, without assuming an iteration order determined by the hash policy.
 TEST(FlatSmallHashMap, EraseUsingIterator) {
   FlatSmallHashMap<int, int> map({{0, 0}, {1, 1}, {2, 2}, {3, 3}});
-  // Check if erase works for const iterator.
   FlatSmallHashMap<int, int>::const_iterator itr = map.begin();
-  ASSERT_NE(itr, map.end());
-  EXPECT_EQ(itr->first, 0);
-  itr = map.erase(itr);
-  ASSERT_NE(itr, map.end());
-  EXPECT_EQ(itr->first, 1);
-  EXPECT_EQ(map.size(), 3);
-  itr = map.erase(itr);
-  ASSERT_NE(itr, map.end());
-  EXPECT_EQ(itr->first, 2);
-  EXPECT_EQ(map.size(), 2);
-  itr = map.erase(itr);
-  ASSERT_NE(itr, map.end());
-  EXPECT_EQ(itr->first, 3);
-  EXPECT_EQ(map.size(), 1);
-  itr = map.erase(itr);
+  for (size_t remaining = map.size(); remaining > 0; --remaining) {
+    ASSERT_NE(itr, map.end());
+    int erased_key = itr->first;
+    FlatSmallHashMap<int, int>::const_iterator next = itr;
+    ++next;
+    itr = map.erase(itr);
+    EXPECT_EQ(itr, next);
+    EXPECT_FALSE(map.contains(erased_key));
+    EXPECT_EQ(map.size(), remaining - 1);
+  }
+  EXPECT_TRUE(map.empty());
   ASSERT_EQ(itr, map.end());
   itr = map.erase(itr);
-  ASSERT_EQ(itr, map.end());
+  EXPECT_EQ(itr, map.end());
 }
 
 TEST(FlatSmallHashMap, RepetitiveInsertEraseDoesNotGrow) {

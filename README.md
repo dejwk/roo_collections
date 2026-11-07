@@ -11,6 +11,25 @@ These collections play nicely with strings. You can use strings as both keys and
 than the storage key, e.g. if you use `std::string` keys but use `const char*` or `roo::string_view` for the lookup, no dynamic allocation is done; the internal comparator functions work with heterogeneous types. Additionally, the library contains a templated SmallString implementation
 which can be used to store small fixed-size strings inline (without using heap).
 
+## Default hashing
+
+Integral and enum keys use MurmurHash3's `fmix32` finalizer rather than identity
+hashing. Keys up to 32 bits convert to `uint32_t` before mixing; 64-bit keys
+XOR their mixed upper word into the lower word, then mix the result. All result
+bits are the same on 32-bit and 64-bit targets. Hashes intentionally differ from
+`std::hash`, and changing the hash can change iteration order.
+
+`Murmur3Fmix32(uint32_t)` is available in `roo_collections/hash.h`. It and the
+default integral/enum policy are `constexpr` in C++14 and later, and usable at
+runtime in C++11. Mutable and immutable tables share this policy.
+The finalizer is an unseeded integer mixer; it is not full MurmurHash3 of a
+four-byte buffer. String keys continue to use full MurmurHash3, and other key
+types use `std::hash` unless a custom policy is supplied.
+
+Mixing makes lookup less sensitive to structured missing-key ranges, at the
+cost of hash computation and potentially more probes for previously
+collision-free keys. It does not guarantee faster lookups for every workload.
+
 ## Immutable tables in flash
 
 Immutable headers expose their types and factories only with C++17 or later.

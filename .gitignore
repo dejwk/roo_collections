@@ -1,2 +1,5 @@
 MODULE.bazel.lock
 bazel-*
+
+# Local Python caches (including benchmark tool tests).
+__pycache__/

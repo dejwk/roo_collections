@@ -25,5 +25,16 @@
     },
     "dependencies": {
         "dejwk/roo_backport": ">=1.2.4"
+    },
+    "export": {
+        "include": [
+            "src/",
+            "examples/",
+            "README.md",
+            "RELEASE_NOTES.md",
+            "LICENSE",
+            "library.json",
+            "library.properties"
+        ]
     }
 }

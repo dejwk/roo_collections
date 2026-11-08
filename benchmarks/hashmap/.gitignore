@@ -1,0 +1,17 @@
+.pio/
+.venv/
+__pycache__/
+compile_commands.json
+platformio.local.ini
+results/
+artifacts/
+
+# Generated artifacts also stay ignored if written outside results/.
+*.log
+*.bin
+*.elf
+*.csv
+*.png
+*.svg
+*.pdf
+*.tar.gz

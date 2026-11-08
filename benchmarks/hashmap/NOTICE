@@ -1,0 +1,12 @@
+ESP32 hashmap benchmark
+
+src/main.cpp adapts workloads and correctness scenarios from Abseil 20250512.1:
+  absl/container/internal/raw_hash_set_benchmark.cc
+  absl/container/internal/unordered_map_lookup_test.h
+
+Copyright 2018 The Abseil Authors. Licensed under Apache-2.0; see LICENSE.abseil.
+The firmware retains its existing copyright and adaptation notices. It is an
+adapted cross-container microcontroller benchmark, rather than a run of the
+complete upstream test or Google Benchmark suite.
+
+Dependencies are downloaded separately and retain their upstream licenses.

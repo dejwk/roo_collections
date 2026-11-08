@@ -1,0 +1,14 @@
+{
+  "abseil": {
+    "version": "20250512.1",
+    "url": "https://codeload.github.com/abseil/abseil-cpp/tar.gz/refs/tags/20250512.1",
+    "sha256": "9b7a064305e9fd94d124ffa6cc358592eb42b5da588fb4e07d09254aa40086db",
+    "prefix": "abseil-cpp-20250512.1"
+  },
+  "roo_backport": {
+    "version": "1.2.4",
+    "url": "https://codeload.github.com/dejwk/roo_backport/tar.gz/refs/tags/1.2.4",
+    "sha256": "cc9dc2ff40715dc127ea9e0eaf558da6b1db917056d1da14ad31ccb3e19df30d",
+    "prefix": "roo_backport-1.2.4"
+  }
+}

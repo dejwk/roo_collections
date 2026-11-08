@@ -1,0 +1,196 @@
+# ESP32 hash map benchmark
+
+Compare `roo_collections::FlatSmallHashMap`, `absl::flat_hash_map`,
+`std::unordered_map`, `absl::node_hash_map`, and `std::map` on a classic ESP32.
+The firmware was imported unchanged from the prototype used for the recorded
+experiments. The general tools live beside the library; build directories,
+dependencies, captures, CSV tables, plots and firmware backups are Git-ignored.
+
+The benchmark dependencies are separate from the library's normal dependencies.
+No device is flashed by dependency setup, building, analysis, plotting or
+packaging. Upload and full-flash restore are explicit commands using a selected
+serial port. Original full-flash backups stay local under `.pio/`.
+
+## Workloads
+
+The suite adapts Abseil 20250512.1's
+[raw_hash_set_benchmark.cc](https://github.com/abseil/abseil-cpp/blob/20250512.1/absl/container/internal/raw_hash_set_benchmark.cc)
+(`BM_EraseEmplace`, `BM_Iteration`, copy/range construction and cache churn) and
+[unordered_map_lookup_test.h](https://github.com/abseil/abseil-cpp/blob/20250512.1/absl/container/internal/unordered_map_lookup_test.h)
+(miss-before-insert and present/value-after-insert checks). See [NOTICE](NOTICE)
+and [LICENSE.abseil](LICENSE.abseil) for attribution. This is an adaptation to a
+common map API, not the complete upstream benchmark or unit-test suite.
+
+There are 5,553 cases per complete suite. Keys are deterministic random uint32,
+sequential uint32, random uint64, and printable strings of 12 and 48 bytes;
+mapped values are uint32. Hit and miss sets are disjoint and visits/insertion
+use a reproducible shuffle. Each hash map runs with its default hash and with
+`absl::Hash<Key>` explicitly supplied; `std::map` uses ordering. Shared hashing
+does not normalize hasher type traits or container capacity/load policies.
+
+Sizes are 1, 2, 4, 7, 8, 10, 15, 16, 32, 54, 64, 100, 128, 256, 400, 512,
+1024 and 2048. Uint64 cases stop at 1024 and string cases at 512 because fixtures,
+source tables and copies must fit in contiguous internal memory. This is a
+fixture limit, not the maximum capacity of a standalone container.
+
+Timing uses the CPU cycle counter at 240 MHz, seven samples and a median after
+calibrating batches to at least 3 ms (up to 65,536 batches). Serial output,
+fixture generation and correctness/heap checks are outside timed intervals.
+Interrupts remain enabled; repeated sweeps are warm accesses. Wi-Fi/Bluetooth
+are not started and PSRAM is not used. SDK heap instrumentation affects
+allocation costs and is recorded in metadata when discoverable.
+
+- `find_hit`, `find_miss`, `iteration`: ns per queried/visited element.
+- `copy_ctor`: copy construction and destruction, ns per source element.
+- `erase_insert`: ns per erase+insert pair, including table maintenance.
+- `build_grow`, `build_presized`: allocation/construction, insertion and
+  destruction, ns per entry; presizing is included in its measured cost.
+- `cache_cycle`: ns per whole cycle of 90 hits, 10 misses, eviction and insertion
+  for string maps of at least 10 entries, using a circular pool of 2N keys.
+- `heap_bytes`: retained internal 8-bit heap, including the map object,
+  allocations and owned strings, excluding shared query fixtures. This does not
+  measure peak memory or fragmentation under arbitrary object lifetimes.
+
+The suite checks duplicates, hit values, absent keys, post-churn contents, heap
+integrity and release of allocations. It exercises mutable `find`, not immutable
+owners or shared read-only interfaces. One seed, one board and one suite do not
+establish confidence intervals or a universal ranking.
+
+## Setup and build
+
+Run commands from this directory, using Python 3.10 or later:
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+python scripts/fetch_dependencies.py
+pio run -j 2
+pio run -t compiledb
+python scripts/metadata.py --output-dir results/my-run --board-label "my ESP32"
+```
+
+On Windows activate `.venv\Scripts\Activate.ps1` instead; source linking requires
+symlink support (for example, Windows Developer Mode). PlatformIO pins
+pioarduino 55.03.37 (Arduino 3.3.7); `dependencies.json` pins Abseil 20250512.1
+and roo_backport 1.2.4 with SHA-256 checksums. Downloads go under `.pio/` and
+the user-level PlatformIO package cache, outside Git history.
+
+The library under test defaults to this repository. Set
+`ROO_COLLECTIONS_SOURCE_DIR` to test a separate checkout or frozen snapshot.
+`ABSL_SOURCE_DIR` and `ROO_BACKPORT_SOURCE_DIR` select local dependency sources;
+their declared versions must match the pins, and source hashes identify local
+edits. For an already-installed platform, an ignored `platformio.local.ini`
+can override only the platform location:
+
+```ini
+[env:esp32dev]
+platform = /absolute/path/to/installed/espressif32
+```
+
+The dependency hook forces the benchmark translation unit to rebuild, avoiding
+stale objects when switching source symlinks or snapshots with old timestamps.
+Metadata derives versions from installed packages and records source and firmware
+hashes. A post-build receipt binds the image to source/configuration fingerprints;
+metadata rejects later edits even when a snapshot preserves old timestamps. Run metadata immediately
+after build/compiledb and before editing measured sources. A dirty tree's hashes
+identify measured bytes; publish clean commits when checkout-based reproduction
+is needed, or retain the corresponding source patch separately.
+
+## Capture on an explicitly selected board
+
+Replace `PORT` with your board's serial port. These commands temporarily replace
+its firmware. First save the complete original flash; the example assumes a
+4 MiB device, configurable with the backup helper's `--size` option.
+
+```sh
+python scripts/backup_flash.py --port PORT --baud 460800 \
+  --output .pio/original-flash.bin
+pio run -t upload --upload-port PORT
+python scripts/capture.py --port PORT --runs 1 \
+  --output results/my-run/esp32.log
+```
+
+The firmware waits for `r`; capture requests it and preserves `BEGIN`, `ROW`,
+`END` records. Capture refuses to overwrite an existing transcript. The default
+is one suite. A comparison can reuse a previous validated baseline; there is no
+automatic baseline run or source modification.
+
+After the run, restore and verify the original flash using the installed
+esptool, independently of benchmark timing:
+
+```sh
+python -m esptool --port PORT --baud 460800 --after no-reset \
+  write-flash 0 .pio/original-flash.bin
+python -m esptool --port PORT --after hard-reset \
+  verify-flash 0 .pio/original-flash.bin
+```
+
+The backup helper uses one in-flight block and independently verified segments
+to tolerate USB/IP transfers. Its `.partial` file belongs to that exact device
+and unchanged firmware; use distinct output paths for other boards.
+
+## Analyze, compare and plot
+
+```sh
+python scripts/analyze.py results/my-run/esp32.log --output-dir results/my-run
+python scripts/compare.py --baseline results/baseline --updated results/my-run
+python -m pip install -r scripts/requirements-charts.txt
+python scripts/plot.py --results-dir results/my-run
+```
+
+Analysis requires complete coverage, valid numeric fields, ordered samples and
+matching start/end heap. It can recover missing record separators, but never
+repairs payloads. Partial-suite recovery exists only through explicit advanced
+options and is unsuitable for the default publishing workflow. Archives require
+strict complete-suite validation. Plots include an HTML gallery, PNG/SVG, PDF
+and input hashes; they need no hardware access.
+
+The comparator checks actual flags, SDK/compiler versions, fixtures and recorded
+non-Roo sources before producing per-case differences and unchanged-container
+controls. Legacy manifests using `prototypes/hashmap_benchmark/src/main.cpp`
+are supported by normalizing its path, while still requiring the same source
+hash. Renaming the file does not bypass a changed-harness check.
+
+## Compact result archives
+
+`results-index.json` starts empty: no historical logs, charts, experimental
+snapshots or unpublished download links are added to this repository. Package a
+selected validated run as a release asset:
+
+```sh
+python scripts/bundle.py pack --results results/my-run --id my-run \
+  --output artifacts/my-run.tar.gz
+```
+
+Only `build_metadata.json`, the selected `.log` transcript(s), and a checksum
+manifest are included. Use repeated `--log PATH` arguments for multiple suites.
+Derived CSVs/reports/charts, firmware binaries and original device backups are
+not included. A typical raw transcript and metadata compress to about 90 KB.
+The command writes a small sibling `.index.json` entry; `--url HTTPS_URL` can
+supply the eventual release-asset URL. Uploading is separate and explicit.
+
+After publishing an asset, add its generated entry with the real URL to the
+`runs` array in `results-index.json`. Keep that small index in Git. Fetching
+checks the archive SHA-256 and each member, validates the complete capture and
+regenerates CSV/report files:
+
+```sh
+python scripts/bundle.py fetch my-run --output results/my-run
+# Or restore a local archive:
+python scripts/bundle.py unpack artifacts/my-run.tar.gz --output results/restored
+python scripts/plot.py --results-dir results/restored
+```
+
+Outputs refuse to overwrite existing captures/results. The archive workflow
+works without Matplotlib until plots are requested. It can package historical
+complete prototype runs without rewriting their metadata or raw bytes.
+
+## Tool tests
+
+```sh
+python -m unittest discover -s tests -v
+```
+
+Tests generate small synthetic fixtures in temporary storage; no board,
+downloaded dependencies, stored result history or plotting packages are needed.

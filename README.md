@@ -265,3 +265,11 @@ All flat hash maps trade some RAM for speed by leaving empty slots in their arra
 Use **`roo_collections`** if your ESP32 firmware relies heavily on string keys (networking, MQTT, APIs), requires fast O(1) lookups, and stores small-to-medium-sized values (like integers, floats, or short strings). 
 
 *If your dataset is incredibly small (< 20 items), strictly requires alphabetical iteration, or forbids heap usage, consider `etl::flat_map`. If you are mapping integers to massive memory-heavy structs, consider `ankerl::unordered_dense`.*
+
+## ESP32 comparison benchmark
+
+The [hash map benchmark](benchmarks/hashmap/README.md) compares Roo, Abseil flat
+and node maps, std::unordered_map and std::map using deterministic fixtures
+adapted from Abseil. It includes capture, validation, comparison, charting and
+compact result-archive tools. Benchmark dependencies and generated outputs stay
+outside normal library dependencies and Git history.

@@ -395,6 +395,10 @@ class ImmutableFlatSmallHashtable
     ReadOnly::states_ = states_.data();
     ReadOnly::capacity_info_ = &Capacity::kValue;
     ReadOnly::slot_count_ = kSlotCount;
+    ReadOnly::dummy_empty_state_ = 0;
+    for (uint16_t i = 0; i < kSlotCount && i < 8; ++i) {
+      if (states_[i] < 0) ReadOnly::dummy_empty_state_ |= uint16_t{1} << i;
+    }
     ReadOnly::used_ = N;
     ReadOnly::erased_ = 0;
     ReadOnly::resize_threshold_ = N;

@@ -56,10 +56,7 @@ class ReadOnlyFlatSmallHashtable
 
     /// Advances to the next occupied bucket.
     ROO_COLLECTIONS_CONSTEXPR14 ConstIterator& operator++() {
-      uint16_t ht_len = ht_->ht_len();
-      do {
-        ++pos_;
-      } while (pos_ < ht_len && ht_->states_[pos_] >= 0);
+      pos_ = ht_->nextOccupiedBucket(pos_ + 1);
       return *this;
     }
 
@@ -128,11 +125,7 @@ class ReadOnlyFlatSmallHashtable
 
   /// @brief Returns an iterator to the first element.
   ROO_COLLECTIONS_CONSTEXPR14 ConstIterator begin() const {
-    uint16_t cap = ht_len();
-    uint16_t pos = 0;
-    for (; pos < cap; ++pos) {
-      if (states_[pos] < 0) break;
-    }
+    uint16_t pos = this->nextOccupiedBucket(0);
     return ConstIterator(this, pos);
   }
 
@@ -192,6 +185,20 @@ class ReadOnlyFlatSmallHashtable
   }
 
  protected:
+  /// Finds the next occupied bucket, skipping the first eight with a bitmap.
+  ROO_COLLECTIONS_CONSTEXPR14 uint16_t nextOccupiedBucket(uint32_t pos) const {
+    if (pos < 8) {
+      uint8_t mask =
+          static_cast<uint8_t>(dummy_empty_state_) & (uint32_t{0xFF} << pos);
+      if (mask != 0) return __builtin_ctz(static_cast<unsigned>(mask));
+      pos = 8;
+    }
+    uint16_t cap = ht_len();
+    if (pos > cap) return cap;
+    while (pos < cap && states_[pos] >= 0) ++pos;
+    return pos;
+  }
+
   using State = int8_t;
   static constexpr State EMPTY = 0;
   static constexpr State DELETED = 1;
@@ -231,6 +238,8 @@ class ReadOnlyFlatSmallHashtable
   uint16_t slot_count_ = 1;
   Entry* buffer_ = nullptr;
   State* states_ = nullptr;
+  // Occupancy of the first eight buckets when storage is allocated. The
+  // allocation-free empty table uses this same zero byte as its only state.
   State dummy_empty_state_ = EMPTY;
 };
 

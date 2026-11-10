@@ -105,4 +105,110 @@ constexpr bool CheckConstantIteration() {
 
 static_assert(CheckConstantIteration(), "shared read-only constexpr iteration");
 
+// Checks observable traversal through the shared read-only interface.
+void ExpectKeys(const View& view, const std::vector<uint32_t>& expected) {
+  std::vector<uint32_t> actual;
+  for (const auto& entry : view) actual.push_back(entry.first);
+  EXPECT_EQ(actual, expected);
+  EXPECT_EQ(view.size(), expected.size());
+  for (uint32_t key : expected) EXPECT_TRUE(view.contains(key));
+}
+
+// Verifies every first-eight occupancy pattern survives tombstones, copying,
+// moving and clearing, and scanning continues correctly beyond the bitmap.
+TEST(FlatSmallHashtableIterator, BitmapPatternsAndOwnership) {
+  for (unsigned pattern = 0; pattern < 256; ++pattern) {
+    SCOPED_TRACE(pattern);
+    Map map(16);
+    for (uint32_t key = 0; key < 8; ++key) map.insert({key, key});
+    map.insert({8, 8});
+    const uint32_t last = map.ht_len() - 1;
+    map.insert({last, last});
+    std::vector<uint32_t> expected;
+    for (uint32_t key = 0; key < 8; ++key) {
+      if ((pattern & (1u << key)) != 0) {
+        expected.push_back(key);
+      } else {
+        ASSERT_TRUE(map.erase(key));
+      }
+    }
+    expected.push_back(8);
+    expected.push_back(last);
+    ExpectKeys(map, expected);
+    Map copy(map);
+    ExpectKeys(copy, expected);
+    Map assigned(0);
+    assigned = copy;
+    ExpectKeys(assigned, expected);
+    Map moved(std::move(copy));
+    ExpectKeys(moved, expected);
+    ExpectKeys(copy, {});
+    assigned = std::move(moved);
+    ExpectKeys(assigned, expected);
+    ExpectKeys(moved, {});
+    assigned.clear();
+    ExpectKeys(assigned, {});
+    assigned.insert({7, 7});
+    ExpectKeys(assigned, {7});
+    ASSERT_TRUE(assigned.erase(7));
+    ExpectKeys(assigned, {});
+  }
+}
+
+// Verifies bucket reuse and same-capacity tombstone cleanup keep iteration in
+// sync while the live keys move across the bitmap boundary.
+TEST(FlatSmallHashtableIterator, BitmapSurvivesTombstoneCleanup) {
+  Map map(8);
+  for (uint32_t key = 0; key < 6; ++key) map.insert({key, key});
+  const uint16_t slots = map.ht_len();
+  for (uint32_t first = 0; first < 500; ++first) {
+    ASSERT_TRUE(map.erase(first));
+    ASSERT_TRUE(map.insert({first + 6, first + 6}).second);
+    EXPECT_EQ(map.ht_len(), slots);
+    uint32_t sum = 0;
+    size_t count = 0;
+    for (const auto& entry : map) {
+      EXPECT_GE(entry.first, first + 1);
+      EXPECT_LE(entry.first, first + 6);
+      sum += entry.first;
+      ++count;
+    }
+    EXPECT_EQ(count, 6u);
+    EXPECT_EQ(sum, 6 * first + 21);
+  }
+}
+
+struct FixedIdentityHash {
+  constexpr uint32_t operator()(uint32_t value) const { return value; }
+};
+
+constexpr roo_collections::ImmutableFlatSmallHashMap kBoundary(
+    roo_collections::WithMapping<uint32_t, uint32_t>({{0, 10},
+                                                      {1, 11},
+                                                      {2, 12},
+                                                      {3, 13},
+                                                      {6, 16},
+                                                      {7, 17},
+                                                      {8, 18},
+                                                      {10, 20}},
+                                                     FixedIdentityHash{}));
+
+// Verifies immutable rebinding rebuilds the bitmap in constant evaluation,
+// including empty buckets below bit seven and occupied buckets beyond it.
+constexpr bool CheckBoundaryIteration() {
+  auto copy = kBoundary;
+  auto assigned = kBoundary;
+  assigned = copy;
+  uint32_t keys = 0;
+  size_t count = 0;
+  for (const auto& entry : assigned) {
+    keys |= 1u << entry.first;
+    ++count;
+  }
+  return keys == 1487 && count == 8;
+}
+
+static_assert(CheckBoundaryIteration(),
+              "constexpr bitmap and scalar traversal");
+
 }  // namespace

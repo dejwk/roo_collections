@@ -69,10 +69,7 @@ class FlatSmallHashtable
     operator ConstIterator() const { return ConstIterator(ht_, pos_); }
 
     Iterator& operator++() {
-      uint16_t ht_len = ht_->ht_len();
-      do {
-        ++pos_;
-      } while (pos_ < ht_len && ht_->states_[pos_] >= 0);
+      pos_ = ht_->nextOccupiedBucket(pos_ + 1);
       return *this;
     }
 
@@ -151,6 +148,7 @@ class FlatSmallHashtable
   FlatSmallHashtable(FlatSmallHashtable&& other)
       : ReadOnly(std::move(other.hash_fn_), std::move(other.key_fn_),
                  std::move(other.key_cmp_fn_)) {
+    dummy_empty_state_ = other.dummy_empty_state_;
     capacity_info_ = other.capacity_info_;
     slot_count_ = capacity_info_->slot_count;
     used_ = other.used_;
@@ -164,6 +162,7 @@ class FlatSmallHashtable
   /// @brief Copy constructor.
   FlatSmallHashtable(const FlatSmallHashtable& other)
       : ReadOnly(other.hash_fn_, other.key_fn_, other.key_cmp_fn_) {
+    dummy_empty_state_ = other.dummy_empty_state_;
     capacity_info_ = other.capacity_info_;
     slot_count_ = capacity_info_->slot_count;
     used_ = other.used_;
@@ -191,13 +190,13 @@ class FlatSmallHashtable
       hash_fn_ = std::move(other.hash_fn_);
       key_fn_ = std::move(other.key_fn_);
       key_cmp_fn_ = std::move(other.key_cmp_fn_);
+      dummy_empty_state_ = other.dummy_empty_state_;
       capacity_info_ = other.capacity_info_;
       slot_count_ = capacity_info_->slot_count;
       used_ = other.used_;
       erased_ = other.erased_;
       resize_threshold_ = other.resize_threshold_;
       buffer_ = other.buffer_;
-      dummy_empty_state_ = EMPTY;
       states_ = ht_len() > 1 ? other.states_ : &dummy_empty_state_;
       other.resetToEmptySentinel();
     }
@@ -212,6 +211,7 @@ class FlatSmallHashtable
       hash_fn_ = other.hash_fn_;
       key_fn_ = other.key_fn_;
       key_cmp_fn_ = other.key_cmp_fn_;
+      dummy_empty_state_ = other.dummy_empty_state_;
       capacity_info_ = other.capacity_info_;
       slot_count_ = capacity_info_->slot_count;
       used_ = other.used_;
@@ -250,11 +250,7 @@ class FlatSmallHashtable
 
   /// @brief Returns a mutable iterator to the first element.
   Iterator begin() {
-    uint16_t cap = ht_len();
-    uint16_t pos = 0;
-    for (; pos < cap; ++pos) {
-      if (states_[pos] < 0) break;
-    }
+    uint16_t pos = this->nextOccupiedBucket(0);
     return Iterator(this, pos);
   }
 
@@ -275,8 +271,10 @@ class FlatSmallHashtable
         // rehashing. (It only works when used_ == 1, because otherwise the
         // other items might have been rehashed away from this bucket).
         states_[pos] = EMPTY;
+        dummy_empty_state_ = EMPTY;
         --used_;
       } else {
+        if (pos < 8) dummy_empty_state_ &= ~(uint16_t{1} << pos);
         states_[pos] = DELETED;
         ++erased_;
       }
@@ -292,6 +290,7 @@ class FlatSmallHashtable
       if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
           key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         states_[p] = DELETED;
+        if (p < 8) dummy_empty_state_ &= ~(uint16_t{1} << p);
         buffer_[p] = Entry();
         ++erased_;
         return true;
@@ -313,6 +312,7 @@ class FlatSmallHashtable
     if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       states_[pos] = DELETED;
+      if (pos < 8) dummy_empty_state_ &= ~(uint16_t{1} << pos);
       buffer_[pos] = Entry();
       ++erased_;
       return true;
@@ -327,6 +327,7 @@ class FlatSmallHashtable
       if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
           key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         states_[p] = DELETED;
+        if (p < 8) dummy_empty_state_ &= ~(uint16_t{1} << p);
         buffer_[p] = Entry();
         ++erased_;
         return true;
@@ -357,6 +358,7 @@ class FlatSmallHashtable
     // std::fill(&buffer_[0], &buffer_[ht_len()], Entry());
     used_ = 0;
     erased_ = 0;
+    dummy_empty_state_ = 0;
   }
 
   /// @brief Rebuilds the table to remove tombstones and shrink capacity.
@@ -472,6 +474,7 @@ class FlatSmallHashtable
     bool recycled = states_[pos] == DELETED;
     buffer_[pos] = std::move(val);
     states_[pos] = (hash & 0x7F) | 0x80;
+    if (pos < 8) dummy_empty_state_ |= uint16_t{1} << pos;
     if (recycled) {
       --erased_;
     } else {
@@ -506,6 +509,7 @@ class FlatSmallHashtable
       // Keep the original arrays to avoid allocator churn when only cleaning.
       used_ = newt.used_;
       erased_ = 0;
+      dummy_empty_state_ = newt.dummy_empty_state_;
       memcpy(states_, newt.states_, ht_len() * sizeof(State));
       for (size_t i = 0; i < ht_len(); ++i) {
         buffer_[i] = std::move(newt.buffer_[i]);

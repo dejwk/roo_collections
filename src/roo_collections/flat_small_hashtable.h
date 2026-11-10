@@ -37,6 +37,7 @@ class FlatSmallHashtable
   using ReadOnly::key_cmp_fn_;
   using ReadOnly::key_fn_;
   using ReadOnly::resize_threshold_;
+  using ReadOnly::slot_count_;
   using ReadOnly::states_;
   using ReadOnly::used_;
 
@@ -138,6 +139,7 @@ class FlatSmallHashtable
       : ReadOnly(hash_fn, key_fn, key_cmp_fn) {
     int capacity_idx = initialCapacityIdx(size_hint);
     capacity_info_ = &impl::kMutableFlatSmallHashtableCapacities[capacity_idx];
+    slot_count_ = capacity_info_->slot_count;
     resize_threshold_ = capacity_info_->mutableCapacity();
     buffer_ = ht_len() > 1 ? new Entry[ht_len()] : nullptr;
     states_ = ht_len() > 1 ? new State[ht_len()] : &dummy_empty_state_;
@@ -149,6 +151,7 @@ class FlatSmallHashtable
       : ReadOnly(std::move(other.hash_fn_), std::move(other.key_fn_),
                  std::move(other.key_cmp_fn_)) {
     capacity_info_ = other.capacity_info_;
+    slot_count_ = capacity_info_->slot_count;
     used_ = other.used_;
     erased_ = other.erased_;
     resize_threshold_ = other.resize_threshold_;
@@ -161,6 +164,7 @@ class FlatSmallHashtable
   FlatSmallHashtable(const FlatSmallHashtable& other)
       : ReadOnly(other.hash_fn_, other.key_fn_, other.key_cmp_fn_) {
     capacity_info_ = other.capacity_info_;
+    slot_count_ = capacity_info_->slot_count;
     used_ = other.used_;
     erased_ = other.erased_;
     resize_threshold_ = other.resize_threshold_;
@@ -187,6 +191,7 @@ class FlatSmallHashtable
       key_fn_ = std::move(other.key_fn_);
       key_cmp_fn_ = std::move(other.key_cmp_fn_);
       capacity_info_ = other.capacity_info_;
+      slot_count_ = capacity_info_->slot_count;
       used_ = other.used_;
       erased_ = other.erased_;
       resize_threshold_ = other.resize_threshold_;
@@ -207,6 +212,7 @@ class FlatSmallHashtable
       key_fn_ = other.key_fn_;
       key_cmp_fn_ = other.key_cmp_fn_;
       capacity_info_ = other.capacity_info_;
+      slot_count_ = capacity_info_->slot_count;
       used_ = other.used_;
       erased_ = other.erased_;
       resize_threshold_ = other.resize_threshold_;
@@ -510,6 +516,7 @@ class FlatSmallHashtable
 
   void resetToEmptySentinel() {
     capacity_info_ = &impl::kMutableFlatSmallHashtableCapacities[0];
+    slot_count_ = capacity_info_->slot_count;
     used_ = 0;
     erased_ = 0;
     resize_threshold_ = 0;

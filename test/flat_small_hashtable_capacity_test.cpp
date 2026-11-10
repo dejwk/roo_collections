@@ -1,6 +1,8 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <iterator>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -232,6 +234,42 @@ TEST(FlatSmallHashtableCapacity, ExplicitCompactionSelectsTightestCapacity) {
   EXPECT_EQ(empty.begin(), empty.end());
   empty.insert(1);
   EXPECT_TRUE(empty.contains(1));
+}
+
+// Verifies the cached bucket count follows ownership changes, growth and
+// compaction, including the allocation-free moved-from sentinel.
+TEST(FlatSmallHashtableCapacity, CachedCountFollowsStorage) {
+  using Map = FlatSmallHashMap<uint32_t, uint32_t>;
+  for (uint16_t hint : {0, 1, 8, 128, 64000}) {
+    Map map(hint);
+    map.insert({7, 12});
+    const uint16_t slots = map.ht_len();
+    Map copy(map);
+    EXPECT_EQ(copy.ht_len(), slots);
+    Map assigned;
+    assigned = copy;
+    EXPECT_EQ(assigned.ht_len(), slots);
+    Map moved(std::move(copy));
+    EXPECT_EQ(moved.ht_len(), slots);
+    EXPECT_EQ(copy.ht_len(), 1);
+    EXPECT_EQ(copy.begin(), copy.end());
+    assigned = std::move(moved);
+    EXPECT_EQ(assigned.ht_len(), slots);
+    EXPECT_EQ(moved.ht_len(), 1);
+    assigned.compact();
+    EXPECT_EQ(assigned.ht_len(), 3);
+    EXPECT_EQ(assigned.at(7), 12u);
+    for (uint32_t i = 0; i < 200; ++i) assigned.insert({i, i});
+    const Map::read_only_type& view = assigned;
+    EXPECT_EQ(std::distance(view.begin(), view.end()), 200);
+    EXPECT_EQ(view.ht_len(), assigned.ht_len());
+    Map empty(0);
+    assigned = empty;
+    EXPECT_EQ(assigned.ht_len(), 1);
+    EXPECT_EQ(assigned.begin(), assigned.end());
+    assigned.insert({0, 1});
+    EXPECT_EQ(assigned.at(0), 1u);
+  }
 }
 
 }  // namespace

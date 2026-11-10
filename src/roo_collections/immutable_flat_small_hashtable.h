@@ -394,6 +394,7 @@ class ImmutableFlatSmallHashtable
     ReadOnly::buffer_ = entries_.data();
     ReadOnly::states_ = states_.data();
     ReadOnly::capacity_info_ = &Capacity::kValue;
+    ReadOnly::slot_count_ = kSlotCount;
     ReadOnly::used_ = N;
     ReadOnly::erased_ = 0;
     ReadOnly::resize_threshold_ = N;

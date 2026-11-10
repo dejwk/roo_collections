@@ -123,7 +123,7 @@ class ReadOnlyFlatSmallHashtable
   }
 
   /// @brief Returns the internal bucket array length.
-  constexpr uint16_t ht_len() const { return capacity_info_->slot_count; }
+  constexpr uint16_t ht_len() const { return slot_count_; }
 
   /// @brief Returns an iterator to the first element.
   ROO_COLLECTIONS_CONSTEXPR14 ConstIterator begin() const {
@@ -226,6 +226,8 @@ class ReadOnlyFlatSmallHashtable
   uint16_t used_ = 0;
   uint16_t erased_ = 0;
   uint16_t resize_threshold_ = 0;
+  // Cached bucket count avoids a descriptor load; fits 32-bit header padding.
+  uint16_t slot_count_ = 1;
   Entry* buffer_ = nullptr;
   State* states_ = nullptr;
   State dummy_empty_state_ = EMPTY;

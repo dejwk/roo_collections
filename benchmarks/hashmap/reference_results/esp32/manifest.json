@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "snapshot": "esp32-2026-11-10",
+  "implementation": "word_bitmap8_fingerprint",
+  "measured_library_commit": "4039bf335f20326628ceb5c535c3fc7218a2ea1b",
+  "tooling_commit": "ca645656079d4891da8fae3efaf7660e7f80a0c4",
+  "generation": {
+    "python": "3.13.5",
+    "matplotlib": "3.11.2",
+    "pdf_pages_per_suite": 11
+  },
+  "runs": {
+    "general": {
+      "recorded_at": "2026-11-10T19:56:11.307500+01:00",
+      "board": "ESP32-D0WD-V3 revision 3.1, COM18",
+      "cases": 5553,
+      "complete_suites": 1,
+      "observations_per_case": 1,
+      "timed_samples_per_observation": 7,
+      "excluded_records": 0,
+      "harness_commit": "4039bf335f20326628ceb5c535c3fc7218a2ea1b",
+      "harness_source_sha256": {
+        "benchmarks/hashmap/src/main.cpp": "00a4ec0e8183f37f7cb0f279f646eb467604d15fcd0b0ab90d3999fd55c84cf6"
+      },
+      "cpu_mhz": 240,
+      "psram": false,
+      "compiler": "xtensa-esp-elf 14.2.0+20251107",
+      "flags": [
+        "-std=gnu++17",
+        "-O2",
+        "-DNDEBUG"
+      ],
+      "platform": "pioarduino espressif32 55.03.37",
+      "arduino": "3.3.7",
+      "abseil": "20250512.1",
+      "roo_backport_commit": "77aa81a729a40b21c4bd5a69e8abba09863cc281",
+      "fill_ratio": {
+        "numerator": 3,
+        "denominator": 4
+      },
+      "heap_poisoning": "unrecorded",
+      "bundle": "general/raw.tar.gz",
+      "metadata_member": "build_metadata.json",
+      "capture_member": "raw/esp32.log",
+      "pdf": "general/benchmark_charts.pdf",
+      "regenerated_summary_sha256": "34ef551a4f2c73b5707f74fb70ed25c2ae57ffaf261861bd450bcd46c5e176d4",
+      "plot_script_sha256": "e93fc1eac7f35febf50efa6e6174977cfb04995426b15da50ef4f1f5c1a28244",
+      "pdf_additional_series": {
+        "label": "Roo (SmallString)",
+        "source_run": "small_string",
+        "inputs_sha256": {
+          "summary.csv": "3e99239e3daf5fbdfe8a3bcb37927ac07016db79f518419271e36d1b63026b53",
+          "build_metadata.json": "30da4d48026f20849487cf09a89b23264aef44e0fa8ef1d6cc861d8d8c26c196"
+        },
+        "payload_mapping": {
+          "string12": "small_string12",
+          "string48": "small_string48"
+        }
+      }
+    },
+    "small_string": {
+      "recorded_at": "2026-11-10T18:56:57.187799+00:00",
+      "board": "ESP32-D0WDQ6 revision 1.1, COM20",
+      "cases": 2142,
+      "complete_suites": 1,
+      "observations_per_case": 1,
+      "timed_samples_per_observation": 7,
+      "excluded_records": 0,
+      "harness_commit": "2987370609bdb34a062be0b0b070fc95facf0e20",
+      "harness_source_sha256": {
+        "benchmarks/hashmap/src/benchmark_keys.h": "27370f8dac5e2d98638e920d91ce8df684c5c86e8d12cb4555c9088453447f5e",
+        "benchmarks/hashmap/src/main.cpp": "86dc35f5cd1a26c307dd90902afb13562e9d71a248bc54c0272bda30d775dfd0"
+      },
+      "cpu_mhz": 240,
+      "psram": false,
+      "compiler": "xtensa-esp-elf 14.2.0+20251107",
+      "flags": [
+        "-std=gnu++17",
+        "-O2",
+        "-DNDEBUG"
+      ],
+      "platform": "pioarduino espressif32 55.03.37",
+      "arduino": "3.3.7",
+      "abseil": "20250512.1",
+      "roo_backport_commit": "77aa81a729a40b21c4bd5a69e8abba09863cc281",
+      "fill_ratio": {
+        "numerator": 3,
+        "denominator": 4
+      },
+      "heap_poisoning": "light",
+      "bundle": "small_string/raw.tar.gz",
+      "metadata_member": "build_metadata.json",
+      "capture_member": "raw/esp32.log",
+      "pdf": "small_string/benchmark_charts.pdf",
+      "regenerated_summary_sha256": "3e99239e3daf5fbdfe8a3bcb37927ac07016db79f518419271e36d1b63026b53",
+      "plot_script_sha256": "e93fc1eac7f35febf50efa6e6174977cfb04995426b15da50ef4f1f5c1a28244"
+    }
+  },
+  "files": {
+    "README.md": {
+      "bytes": 7337,
+      "sha256": "585810cac6345e158017b57c1bf8dc10e7f5948e3836d4a3785612adc57d2bbc"
+    },
+    "general/benchmark_charts.pdf": {
+      "bytes": 412665,
+      "sha256": "c11ee2f8c210483d4b41b010f202457b29458477e5c0abc6e0b4d63f350bc73e"
+    },
+    "general/raw.tar.gz": {
+      "bytes": 91675,
+      "sha256": "b14a0e3b7fd29a1a70c92e01acbecfe81bf8ee8617877501b173f65f78aa4c52"
+    },
+    "small_string/benchmark_charts.pdf": {
+      "bytes": 188662,
+      "sha256": "a26afd3f798907a0c9573cc46c9c027b74dcec3136d301975986c0118c7372f3"
+    },
+    "small_string/raw.tar.gz": {
+      "bytes": 40677,
+      "sha256": "343d794e095e1c9d341ddfa6a7b204114d6e94a6322784c7b706e4210e78f600"
+    }
+  }
+}

@@ -3,8 +3,11 @@
 Compare `roo_collections::FlatSmallHashMap`, `absl::flat_hash_map`,
 `std::unordered_map`, `absl::node_hash_map`, and `std::map` on a classic ESP32.
 The general workloads preserve the prototype fixtures; a separate SmallString
-suite adds inline string keys. The general tools live beside the library; build directories,
-dependencies, captures, CSV tables, plots and firmware backups are Git-ignored.
+suite adds inline string keys. The general tools live beside the library. A compact
+[ESP32 reference snapshot](reference_results/esp32/README.md) includes validated
+captures, provenance and comparative PDFs, with Roo (SmallString) included in the
+general string charts. Ordinary build directories, dependencies, captures, CSV
+tables, chart galleries and firmware backups are Git-ignored.
 
 The benchmark dependencies are separate from the library's normal dependencies.
 No device is flashed by dependency setup, building, analysis, plotting or
@@ -203,9 +206,11 @@ hash. Renaming the file does not bypass a changed-harness check.
 
 ## Compact result archives
 
-`results-index.json` starts empty: no historical logs, charts, experimental
-snapshots or unpublished download links are added to this repository. Package a
-selected validated run as a release asset:
+The checked-in [reference snapshot](reference_results/esp32/README.md) keeps two
+compact raw bundles and their comparative PDFs in Git; its manifest records file
+checksums and source revisions. Follow its instructions to regenerate full tables
+and galleries locally. Other runs can be published as release assets, with download
+URLs in `results-index.json` (currently empty). Package a selected validated run:
 
 ```sh
 python scripts/bundle.py pack --results results/my-run --id my-run \

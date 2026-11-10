@@ -15,3 +15,9 @@ artifacts/
 *.svg
 *.pdf
 *.tar.gz
+
+# Compact, curated reference snapshot; ordinary generated output stays ignored.
+!/reference_results/esp32/general/raw.tar.gz
+!/reference_results/esp32/general/benchmark_charts.pdf
+!/reference_results/esp32/small_string/raw.tar.gz
+!/reference_results/esp32/small_string/benchmark_charts.pdf

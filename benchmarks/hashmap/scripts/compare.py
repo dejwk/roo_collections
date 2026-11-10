@@ -6,7 +6,8 @@ import math
 from pathlib import Path
 import statistics
 
-from suites import SUITES, string_key, suite_for_keys
+from suites import (SUITES, string_key, suite_for_keys, profile_for_maps,
+                    MAP_PROFILES, supports_workload)
 
 GROUP = ("map", "hash", "key", "n", "workload")
 KEYS = ("u32_random", "u32_sequential", "u64_random", "string12", "string48")
@@ -33,6 +34,7 @@ def main():
     after, new_build = load(args.updated)
     suite = suite_for_keys({case[2] for case in before})
     keys = SUITES[suite]
+    maps = MAP_PROFILES[profile_for_maps({case[0] for case in before})]
     strings = tuple(key for key in keys if string_key(key))
     sizes = tuple(n for n in SIZES if all(("roo", "default", key, str(n), "find_hit") in before for key in keys))
     if before.keys() != after.keys():
@@ -78,6 +80,8 @@ def main():
         return 100 * (math.exp(statistics.mean(math.log(r) for r in ratios)) - 1)
 
     def percent(change):
+        if change is None:
+            return "—"
         return "0.0%" if abs(change) < 0.05 else f"{change:+.1f}%"
 
     old_commit = old_build["roo_collections_commit"]
@@ -150,9 +154,10 @@ def main():
              "and generated-code layout can change between binaries.", "",
              "| Map | Hash | Hit | Miss | Iterate | Copy | Erase/insert | Build | Presized build |",
              "|---|---|---:|---:|---:|---:|---:|---:|---:|"]
-    for name in ("absl_flat", "std_unordered", "absl_node", "std_map"):
+    for name in (name for name in maps if name != "roo"):
         for hashing in (("ordered",) if name == "std_map" else ("default", "absl_hash")):
-            values = [delta(name, hashing, keys, work) for work in WORKS]
+            values = [delta(name, hashing, keys, work) if supports_workload(name, work) else None
+                      for work in WORKS]
             text.append(f"| {name} | {hashing} | " +
                         " | ".join(percent(v) for v in values) + " |")
     changed_heaps = [r for r in comparisons.values() if r["map"] == "roo" and

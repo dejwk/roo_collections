@@ -1,7 +1,9 @@
 # ESP32 hash map benchmark
 
 Compare `roo_collections::FlatSmallHashMap`, `absl::flat_hash_map`,
-`std::unordered_map`, `absl::node_hash_map`, and `std::map` on a classic ESP32.
+`std::unordered_map`, `absl::node_hash_map`, `std::map`, `tsl::robin_map`,
+`ankerl::unordered_dense::map`, `etl::unordered_map`,
+`boost::unordered_flat_map`, and `emhash5::HashMap` on a classic ESP32.
 The general workloads preserve the prototype fixtures; a separate SmallString
 suite adds inline string keys. The general tools live beside the library. A compact
 [ESP32 reference snapshot](reference_results/esp32/README.md) includes validated
@@ -24,14 +26,14 @@ The suite adapts Abseil 20250512.1's
 and [LICENSE.abseil](LICENSE.abseil) for attribution. This is an adaptation to a
 common map API, not the complete upstream benchmark or unit-test suite.
 
-There are 5,553 cases per complete suite. Keys are deterministic random uint32,
+The extended profile has 11,553 cases per complete general suite. Keys are deterministic random uint32,
 sequential uint32, random uint64, and printable strings of 12 and 48 bytes;
 mapped values are uint32. Hit and miss sets are disjoint and visits/insertion
 use a reproducible shuffle. Each hash map runs with its default hash and with
 `absl::Hash<Key>` explicitly supplied; `std::map` uses ordering. Shared hashing
 does not normalize hasher type traits or container capacity/load policies.
 
-The separate `small_string` suite has 2,142 cases. It uses
+The separate extended `small_string` suite has 4,460 cases. It uses
 `roo_collections::SmallString<13>` and `SmallString<49>` for the same 12- and
 48-character payloads (capacities include the trailing null). Fixture bytes,
 visit order, sizes, correctness checks, timing and workloads match the string
@@ -46,7 +48,7 @@ inline; its current length operation scans for the terminator.
 Benchmark-only adapters in `src/benchmark_keys.h` provide lexicographic ordering
 for `std::map`, `std::hash<std::string_view>` for `std::unordered_map`, and an
 `AbslHashValue` hook delegating to `absl::string_view`. Roo's default continues
-to use its native SmallString hash. All four shared-hash containers use
+to use its native SmallString hash. All nine shared-hash containers use
 `absl::Hash<SmallString<N>>`. These adapters are not library API additions.
 
 Both suites are in one firmware. Send `r` for general or `s` for SmallString;
@@ -68,6 +70,13 @@ Interrupts remain enabled; repeated sweeps are warm accesses. Wi-Fi/Bluetooth
 are not started and PSRAM is not used. SDK heap instrumentation affects
 allocation costs and is recorded in metadata when discoverable.
 
+Before the suite's heap baseline, the harness exercises guarded C++ local-static
+initialization. ESP-IDF lazily allocates shared synchronization objects for this
+runtime facility; otherwise the first container using it would appear to leak.
+The transcript records that one-time cost as `RUNTIME_INIT`. Per-map retained
+heap excludes this shared runtime cost; per-map and whole-suite heap-release
+checks remain enabled.
+
 - `find_hit`, `find_miss`, `iteration`: ns per queried/visited element.
 - `copy_ctor`: copy construction and destruction, ns per source element.
 - `erase_insert`: ns per erase+insert pair, including table maintenance.
@@ -83,6 +92,48 @@ The suite checks duplicates, hit values, absent keys, post-churn contents, heap
 integrity and release of allocations. It exercises mutable `find`, not immutable
 owners or shared read-only interfaces. One seed, one board and one suite do not
 establish confidence intervals or a universal ranking.
+
+## Additional competitors
+
+All new sources are fetched into ignored storage using archive SHA-256 pins in
+`dependencies.json`; none are vendored into Git. Boost 1.90.0 uses only the
+header modules needed by Unordered, rather than the full distribution.
+
+| ID | Upstream implementation | Pinned version | Capacity policy |
+|---|---|---|---|
+| `tsl_robin` | [Tessil robin_map](https://github.com/Tessil/robin-map) | 1.4.1 | Native default growth/load factor |
+| `unordered_dense` | [ankerl unordered_dense](https://github.com/martinus/unordered_dense) | 5.3.3 | Dense values plus a grouped fingerprint/index array |
+| `etl` | [ETL unordered_map](https://www.etlcpp.com/docs/containers/maps/unordered-map/) | 20.49.0 | Exactly N nodes and N buckets, fixed capacity |
+| `boost_flat` | [Boost unordered_flat_map](https://www.boost.org/doc/libs/1_90_0/libs/unordered/doc/html/unordered.html) | 1.90.0 | Native default growth/load factor |
+| `emhash5` | [emhash hash_table5](https://github.com/ktprime/emhash) | 1.3.0 | Native default growth/load factor |
+
+The benchmark selects native hash types for standard key types. Benchmark-only
+SmallString adapters use each library's string-content path: std::string_view
+for the standard hasher, unordered_dense and Boost, and etl::string_view for ETL
+(which also needs that adapter for std::string). Native avalanche traits are
+preserved. Explicit Abseil hashing is supplied to all nine hash maps; their own
+hash postprocessing, capacity and load policies remain intact.
+
+ETL has no dynamic-growth workload. Its rows omit `build_grow`; charts and tables
+leave that series absent rather than treating it as a zero or a growth result.
+Its presized build measures allocation, construction, filling and destruction of
+an actual `etl::unordered_map<Key, Value, N, N, Hash>` for each fixture N. An owning
+adapter selects the capacity without duplicating the timing loops. Lookup,
+iteration and mutation use the native size-independent ETL interface directly,
+selected before timing; copy/construction include adapter ownership overhead.
+Both retained heap and object bytes include the adapter and the entire native
+object, including its embedded pool and bucket array. Allocating these objects
+on the heap also keeps large ETL copies off the ESP32 task stack.
+
+The expanded firmware uses `huge_app.csv` (a 3 MiB application slot on a 4 MiB
+ESP32); the default 1.25 MiB slot is too small for all containers. Full-flash
+backup/restore preserves the original partition layout along with its firmware.
+The fixture sizes and timing loop settings are unchanged.
+
+`BEGIN` now records `profile=extended`. Untagged historical captures remain the
+classic five-container profile (5,553 general / 2,142 SmallString cases).
+Analysis rejects mixed or incomplete profiles. Charts infer the exact roster
+from validated CSVs, so existing reference bundles remain readable.
 
 ## Setup and build
 
@@ -188,7 +239,7 @@ records both input sets in the chart manifest. Integer panels are unchanged.
 The tool requires matching library/dependency source hashes and recorded build
 settings. Captures can come from different boards or harnesses; the charts label
 them as separate runs, so timing differences also include board and binary-layout
-effects. The standalone SmallString PDF continues to compare all five containers
+effects. The standalone SmallString PDF continues to compare all ten containers
 using SmallString keys.
 
 Analysis requires complete coverage, valid numeric fields, ordered samples and
@@ -259,3 +310,18 @@ c++ -std=c++17 -fno-exceptions -fno-rtti -Isrc -I../../src \
   tests/keys_test.cpp -o .pio/keys_test
 .pio/keys_test
 ```
+
+Validate all five additional containers and adapters on the host after dependency
+setup (GCC/Clang-compatible C++17 compiler):
+
+```sh
+python scripts/test_containers.py
+# Optional sanitizer run:
+python scripts/test_containers.py --sanitize
+```
+
+These tests cover native and explicit hashers, string/integer keys, duplicates at
+full fixed capacity, independent copies, iteration and repeated erase/insert.
+The explicit-hasher checks catch implementations/configurations that bypass the
+supplied hash function. Device captures also check values, misses, copy contents,
+churn contents, heap integrity and full release after every fixture.

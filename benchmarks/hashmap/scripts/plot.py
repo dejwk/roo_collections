@@ -11,22 +11,24 @@ from pathlib import Path
 import shlex
 import sys
 
-from suites import GENERAL_KEYS, SMALL_STRING_KEYS, string_key, suite_for_keys
+from suites import (GENERAL_KEYS, SMALL_STRING_KEYS, string_key, suite_for_keys,
+                    ALL_MAPS, MAP_PROFILES, profile_for_maps, supports_workload)
 
 PROJECT = Path(__file__).resolve().parents[1]
 os.environ.setdefault("MPLCONFIGDIR", str(PROJECT / ".pio/matplotlib-cache"))
 
 MAPS = ("roo", "absl_flat", "std_unordered", "absl_node", "std_map")
 SMALL_STRING_SERIES = "roo_small_string"
-PLOT_MAPS = MAPS + (SMALL_STRING_SERIES,)
+PLOT_MAPS = ALL_MAPS + (SMALL_STRING_SERIES,)
 KEYS = ("u32_random", "u32_sequential", "u64_random", "string12", "string48")
 KEY_LABELS = ("uint32 · random", "uint32 · sequential", "uint64 · random",
               "String · 12 bytes", "String · 48 bytes")
 SHORT_KEYS = ("uint32\nrandom", "uint32\nsequential", "uint64\nrandom",
               "String\n12 bytes", "String\n48 bytes")
-LABELS = ("Roo", "Abseil flat", "std::unordered_map", "Abseil node", "std::map", "Roo (SmallString)")
-COLORS = ("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#606770", "#D55E00")
-MARKERS = ("o", "s", "^", "D", "v", "P")
+LABELS = ("Roo", "Abseil flat", "std::unordered_map", "Abseil node", "std::map", "Tessil robin_map", "unordered_dense",
+          "ETL (fixed N)", "Boost flat", "emhash5", "Roo (SmallString)")
+COLORS = ("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#606770", "#56B4E9", "#332288", "#CCBB44", "#44AA99", "#882255", "#D55E00")
+MARKERS = ("o", "s", "^", "D", "v", ">", "<", "h", "*", "X", "P")
 WORKS = ("find_hit", "find_miss", "iteration", "copy_ctor", "erase_insert",
          "build_grow", "build_presized", "cache_cycle")
 GROUP = ("map", "hash", "key", "n", "workload")
@@ -47,6 +49,8 @@ class Results:
             rows = list(csv.DictReader(stream))
         if not rows:
             raise ValueError("summary.csv is empty")
+        self.profile = profile_for_maps({row["map"] for row in rows})
+        self.maps = MAP_PROFILES[self.profile]
         self.suite = suite_for_keys({row["key"] for row in rows})
         self.keys = GENERAL_KEYS if self.suite == "general" else SMALL_STRING_KEYS
         self.key_labels = KEY_LABELS if self.suite == "general" else ("SmallString<13> · 12 chars", "SmallString<49> · 48 chars")
@@ -61,7 +65,7 @@ class Results:
                 row[field] = float(row[field])
                 if not math.isfinite(row[field]):
                     raise ValueError(f"Non-finite {field}: {row}")
-            if (row["map"] not in MAPS or row["key"] not in self.keys or
+            if (row["map"] not in self.maps or row["key"] not in self.keys or
                     row["workload"] not in WORKS or row["n"] < 1 or row["runs"] < 1):
                 raise ValueError(f"Invalid case: {row}")
             allowed = ("ordered",) if row["map"] == "std_map" else ("default", "absl_hash")
@@ -83,9 +87,11 @@ class Results:
             if not sizes:
                 raise ValueError(f"No observations for {key}")
             for n in sizes:
-                for name in MAPS:
+                for name in self.maps:
                     for hashing in (("ordered",) if name == "std_map" else ("default", "absl_hash")):
                         for work in WORKS:
+                            if not supports_workload(name, work):
+                                continue
                             if work == "cache_cycle" and (not string_key(key) or n < 10):
                                 continue
                             expected.add((name, hashing, key, n, work))
@@ -112,14 +118,17 @@ class Results:
                         if name.startswith(("lib/", "absl/"))}
             if library_sources(self.build) != library_sources(extra.build):
                 raise ValueError("SmallString overlay library/dependency source hashes differ")
+            if ("dependency_content_sha256" in self.build and "dependency_content_sha256" in extra.build
+                    and self.build["dependency_content_sha256"] != extra.build["dependency_content_sha256"]):
+                raise ValueError("SmallString overlay dependency content differs")
             self.small_string = extra
 
     def maps_for(self, key, n=None):
         if self.small_string is not None and key.startswith("string"):
             sizes = self.small_string.sizes["small_" + key]
             if n is None or n in sizes:
-                return PLOT_MAPS
-        return MAPS
+                return self.maps + (SMALL_STRING_SERIES,)
+        return self.maps
 
     def get(self, name, policy, key, n, work, field="median_ns"):
         if name == SMALL_STRING_SERIES:
@@ -130,6 +139,8 @@ class Results:
     def series(self, name, policy, key, work, field="median_ns", factor=0.001):
         if name == SMALL_STRING_SERIES:
             return self.small_string.series("roo", policy, "small_" + key, work, field, factor)
+        if not supports_workload(name, work):
+            return [], []
         sizes = sorted(n for n in self.sizes[key] if work != "cache_cycle" or n >= 10)
         return sizes, [self.get(name, policy, key, n, work, field) * factor for n in sizes]
 
@@ -149,6 +160,8 @@ class Results:
                 f"{counts} {suite}/case, 7 samples/row\n"
                 "Medians shown; no confidence intervals. Default capacity policies; "
                 "fill ratios are not normalized. Lower is better.")
+        if self.profile == "extended":
+            text += "\nETL: fixed capacity N, N buckets; embedded storage + adapter included; no dynamic-growth series."
         if self.small_string is not None:
             limit = max(self.small_string.sizes["small_string48"])
             text += ("\nRoo (SmallString): separate capture/board; other string series use std::string. "
@@ -159,6 +172,8 @@ class Results:
 def line(ax, results, name, policy, key, work, field="median_ns", factor=0.001):
     i = PLOT_MAPS.index(name)
     x, y = results.series(name, policy, key, work, field, factor)
+    if not x:
+        return
     ax.plot(x, y, color=COLORS[i], marker=MARKERS[i], markersize=3.3,
             linewidth=2.1 if name in ("roo", SMALL_STRING_SERIES) else 1.35,
             linestyle="--" if name == SMALL_STRING_SERIES else "-", label=LABELS[i],
@@ -186,13 +201,14 @@ def decorate(fig, axes, results, title, subtitle, footer=None):
         legend.update(zip(labels, handles))
     fig.legend(list(legend.values()), list(legend), loc="upper center",
                bbox_to_anchor=(0.5, 0.872 if short else 0.913),
-               ncol=len(legend), frameon=False, fontsize=10)
+               ncol=min(6, len(legend)), frameon=False, fontsize=10)
     fig.text(0.5, 0.018, footer or results.footer(), ha="center", va="bottom",
              fontsize=8.5, color="#4b5563", linespacing=1.5)
     for ax in axes:
         ax.spines[["top", "right"]].set_visible(False)
         ax.tick_params(labelsize=8.5)
-    fig.subplots_adjust(left=0.065, right=0.99, top=0.77 if short else 0.82, bottom=0.145,
+    top = (0.70 if short else 0.77) if results.profile == "extended" else (0.77 if short else 0.82)
+    fig.subplots_adjust(left=0.065, right=0.99, top=top, bottom=0.18 if results.profile == "extended" else 0.145,
                         hspace=0.44, wspace=0.31)
 
 
@@ -200,13 +216,15 @@ def overview(plt, results, n):
     for key in results.keys:
         if n not in results.sizes[key]:
             raise ValueError(f"Overview size {n} absent for {key}")
-    fig, grid = plt.subplots(2, 2, figsize=(13.8, 9.2))
+    fig, grid = plt.subplots(2, 2, figsize=(18 if len(results.maps) > 5 else 13.8, 9.8))
     panels = (("find_hit", "median_ns", 0.001, "Successful lookup", "µs / query"),
               ("find_miss", "median_ns", 0.001, "Unsuccessful lookup", "µs / query"),
               ("iteration", "median_ns", 1.0, "Iteration", "ns / visited entry"),
               ("find_hit", "heap_bytes", 1 / 1024, "Retained heap after growth", "KiB"))
     for ax, (work, field, factor, title, unit) in zip(grid.flat, panels):
-        width = 0.72 / (len(PLOT_MAPS) if results.small_string is not None else len(MAPS))
+        if field == "heap_bytes" and results.profile == "extended":
+            title = "Retained heap · grown / fixed capacity"
+        width = 0.78 / (len(results.maps) + (results.small_string is not None))
         for j, key in enumerate(results.keys):
             names = results.maps_for(key, n)
             for position, name in enumerate(names):
@@ -230,7 +248,7 @@ def overview(plt, results, n):
 
 def timing_grid(plt, results, policy, panels, title, log_y=False):
     fig, grid = plt.subplots(len(panels), len(results.keys), squeeze=False,
-                             figsize=(18, 4.1 * len(panels)))
+                             figsize=(18, (4.7 if results.profile == "extended" else 4.1) * len(panels)))
     for col, (key, key_label) in enumerate(zip(results.keys, results.key_labels)):
         for row, (work, label, factor, unit) in enumerate(panels):
             ax = grid[row, col]
@@ -261,7 +279,7 @@ def timing_grid(plt, results, policy, panels, title, log_y=False):
     subtitle += "Y axes are logarithmic." if log_y else "Y axes are linear and start at zero."
     decorate(fig, list(grid.flat), results, title, subtitle)
     if len(panels) == 3:
-        fig.subplots_adjust(top=0.855, bottom=0.11, hspace=0.5)
+        fig.subplots_adjust(top=0.79 if results.profile == "extended" else 0.82, bottom=0.14, hspace=0.5)
     return fig
 
 
@@ -292,7 +310,7 @@ def cache_chart(plt, results, policy):
 
 
 def memory_chart(plt, results, presizing=False):
-    fig, grid = plt.subplots(2, len(results.keys), figsize=(18, 8.2))
+    fig, grid = plt.subplots(2, len(results.keys), figsize=(18, 9.4 if results.profile == "extended" else 8.2))
     policies = ("default", "default") if presizing else ("default", "absl_hash")
     for row, policy in enumerate(policies):
         work = "build_presized" if presizing and row == 1 else "find_hit"
@@ -307,6 +325,8 @@ def memory_chart(plt, results, presizing=False):
             hashing = "Default hash" if policy == "default" else "Shared Abseil hash"
             if presizing:
                 hashing = "Presized for N entries" if row == 1 else "Grown from default capacity"
+                if row == 0 and results.profile == "extended":
+                    hashing = "Grown / ETL fixed capacity N"
             ax.set_title(f"{label}\n{hashing}", fontsize=10, pad=9)
             if row == 1:
                 ax.set_xlabel("Entries · log₂ scale", fontsize=9)
@@ -479,7 +499,7 @@ def main():
                 "inputs": {name: digest(args.results_dir / name)
                             for name in ("summary.csv", "build_metadata.json")},
                 "script_sha256": digest(Path(__file__)), "matplotlib_version": matplotlib.__version__,
-                "cases": len(results.data), "overview_size": args.overview_size,
+                "map_profile": results.profile, "cases": len(results.data), "overview_size": args.overview_size,
                 "minimum_suites_per_case": results.minimum_runs,
                 "maximum_suites_per_case": results.maximum_runs,
                 "samples_per_row": 7, "dpi": args.dpi,

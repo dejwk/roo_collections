@@ -1,121 +1,328 @@
 {
   "schema_version": 1,
-  "snapshot": "esp32-2026-11-10",
+  "snapshot": "esp32-extended-2026-11-10",
   "implementation": "word_bitmap8_fingerprint",
-  "measured_library_commit": "4039bf335f20326628ceb5c535c3fc7218a2ea1b",
-  "tooling_commit": "ca645656079d4891da8fae3efaf7660e7f80a0c4",
+  "map_profile": "extended",
+  "maps": {
+    "roo": "Roo",
+    "absl_flat": "Abseil flat",
+    "std_unordered": "std::unordered_map",
+    "absl_node": "Abseil node",
+    "std_map": "std::map",
+    "tsl_robin": "Tessil robin_map",
+    "unordered_dense": "unordered_dense",
+    "etl": "ETL (fixed N)",
+    "boost_flat": "Boost flat",
+    "emhash5": "emhash5"
+  },
+  "dependency_pins": {
+    "abseil": {
+      "version": "20250512.1",
+      "url": "https://codeload.github.com/abseil/abseil-cpp/tar.gz/refs/tags/20250512.1",
+      "sha256": "9b7a064305e9fd94d124ffa6cc358592eb42b5da588fb4e07d09254aa40086db",
+      "prefix": "abseil-cpp-20250512.1"
+    },
+    "roo_backport": {
+      "version": "1.2.4",
+      "url": "https://codeload.github.com/dejwk/roo_backport/tar.gz/refs/tags/1.2.4",
+      "sha256": "cc9dc2ff40715dc127ea9e0eaf558da6b1db917056d1da14ad31ccb3e19df30d",
+      "prefix": "roo_backport-1.2.4"
+    },
+    "robin_map": {
+      "version": "1.4.1",
+      "url": "https://codeload.github.com/Tessil/robin-map/tar.gz/refs/tags/v1.4.1",
+      "sha256": "0e3f53a377fdcdc5f9fed7a4c0d4f99e82bbb64175233bd13427fef9a771f4a1",
+      "prefix": "robin-map-1.4.1",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": [
+        "tsl/robin_map.h"
+      ]
+    },
+    "unordered_dense": {
+      "version": "5.3.3",
+      "url": "https://codeload.github.com/martinus/unordered_dense/tar.gz/refs/tags/v5.3.3",
+      "sha256": "862605ef21424c6c92881aac4cf8f09c3abd91c80588446c83892583228eca67",
+      "prefix": "unordered_dense-5.3.3",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": [
+        "ankerl/unordered_dense.h"
+      ]
+    },
+    "etl": {
+      "version": "20.49.0",
+      "url": "https://codeload.github.com/ETLCPP/etl/tar.gz/refs/tags/20.49.0",
+      "sha256": "b3e7a5544795ec8f4a1b2ab46f6e88fdb78be5a07738f008ce11dd37ed14b6e4",
+      "prefix": "etl-20.49.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": [
+        "etl/unordered_map.h"
+      ]
+    },
+    "emhash": {
+      "version": "1.3.0",
+      "url": "https://codeload.github.com/ktprime/emhash/tar.gz/refs/tags/v1.3.0",
+      "sha256": "94327989a23eb6027d81b267c607a0a5c62d47deb0db3eb22cbdc580a165ba74",
+      "prefix": "emhash-1.3.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": [
+        "emhash/hash_table5.hpp"
+      ]
+    },
+    "boost_unordered": {
+      "version": "boost-1.90.0",
+      "url": "https://codeload.github.com/boostorg/unordered/tar.gz/refs/tags/boost-1.90.0",
+      "sha256": "7dd15a1196e36de483fc287a5487210b596979761c4708b4c3067a717c765a05",
+      "prefix": "unordered-boost-1.90.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": [
+        "boost/unordered/unordered_flat_map.hpp"
+      ]
+    },
+    "boost_assert": {
+      "version": "boost-1.90.0",
+      "url": "https://codeload.github.com/boostorg/assert/tar.gz/refs/tags/boost-1.90.0",
+      "sha256": "1f48f929e69146db222fdf9538ec81c7cbd3ca88b94343644942b477031a3bba",
+      "prefix": "assert-boost-1.90.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": []
+    },
+    "boost_config": {
+      "version": "boost-1.90.0",
+      "url": "https://codeload.github.com/boostorg/config/tar.gz/refs/tags/boost-1.90.0",
+      "sha256": "1390bd79fbf270e40cfe5ac6b899f4a9c4e47139b6e17b4c1f7f78822adaa9fc",
+      "prefix": "config-boost-1.90.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": []
+    },
+    "boost_container_hash": {
+      "version": "boost-1.90.0",
+      "url": "https://codeload.github.com/boostorg/container_hash/tar.gz/refs/tags/boost-1.90.0",
+      "sha256": "415d6a01b2d8a07ab36dbf9e31a8fec6fa0e51185d1015a087c153de28cfaba5",
+      "prefix": "container_hash-boost-1.90.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": []
+    },
+    "boost_core": {
+      "version": "boost-1.90.0",
+      "url": "https://codeload.github.com/boostorg/core/tar.gz/refs/tags/boost-1.90.0",
+      "sha256": "0444b7741bcf20f80ff6a4d191a920f6aba92d26734c81fa481f8fd0a274b487",
+      "prefix": "core-boost-1.90.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": []
+    },
+    "boost_describe": {
+      "version": "boost-1.90.0",
+      "url": "https://codeload.github.com/boostorg/describe/tar.gz/refs/tags/boost-1.90.0",
+      "sha256": "4ca9c54d50c5bd8ec68811475ef96ec1ac0abbfbf19f55789823aabcbb704812",
+      "prefix": "describe-boost-1.90.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": []
+    },
+    "boost_mp11": {
+      "version": "boost-1.90.0",
+      "url": "https://codeload.github.com/boostorg/mp11/tar.gz/refs/tags/boost-1.90.0",
+      "sha256": "ca52bde753586dcba29739cfd55abb473bf80c934c6d49a2b58023ed4e48adf6",
+      "prefix": "mp11-boost-1.90.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": []
+    },
+    "boost_predef": {
+      "version": "boost-1.90.0",
+      "url": "https://codeload.github.com/boostorg/predef/tar.gz/refs/tags/boost-1.90.0",
+      "sha256": "d9144eb3c7d965991e8798fc7e96d5ea862951bffcbdba0b8a23892fd5c99f7c",
+      "prefix": "predef-boost-1.90.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": []
+    },
+    "boost_throw_exception": {
+      "version": "boost-1.90.0",
+      "url": "https://codeload.github.com/boostorg/throw_exception/tar.gz/refs/tags/boost-1.90.0",
+      "sha256": "30e2834ba64587a363750e35c627ee045f89be05d0cc9eab7251414eba88e110",
+      "prefix": "throw_exception-boost-1.90.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": []
+    },
+    "boost_static_assert": {
+      "version": "boost-1.90.0",
+      "url": "https://codeload.github.com/boostorg/static_assert/tar.gz/refs/tags/boost-1.90.0",
+      "sha256": "3b7980c5968d585b04f980bbb4e81bbbf0b6d1a0b7c965c2a3426b0acb4a5f49",
+      "prefix": "static_assert-boost-1.90.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": []
+    },
+    "boost_type_traits": {
+      "version": "boost-1.90.0",
+      "url": "https://codeload.github.com/boostorg/type_traits/tar.gz/refs/tags/boost-1.90.0",
+      "sha256": "d8f1f937a56dacbd5bd3067312896f3b2b84ddf7cbeb93f21e1ffd844e512587",
+      "prefix": "type_traits-boost-1.90.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": []
+    },
+    "boost_preprocessor": {
+      "version": "boost-1.90.0",
+      "url": "https://codeload.github.com/boostorg/preprocessor/tar.gz/refs/tags/boost-1.90.0",
+      "sha256": "4a951411d94423e74a4f1df5b1aa5d51996dbfbf01bec35bc51c53af4707bda3",
+      "prefix": "preprocessor-boost-1.90.0",
+      "include_dirs": [
+        "include"
+      ],
+      "required_headers": []
+    }
+  },
   "generation": {
     "python": "3.13.5",
     "matplotlib": "3.11.2",
     "pdf_pages_per_suite": 11
   },
+  "tooling_source_sha256": {
+    "analyze.py": "b6e5d68c828a1259fceb2f76349e0beea6556a4a2a5dd8236cc381202fe6fe82",
+    "backup_flash.py": "3deb537888f39bb32e6b8a28312f443fc7f5bfaaa27f9193d327ffa998f840bb",
+    "bundle.py": "3709f4b4e6bb2d73a72f11d6528b6d6ef81123387b8b223b1636256c01d5e10b",
+    "capture.py": "119f005c888d8b6a6f0f017840ec04024311ddc5e1c76e7a4edd3052425b6dab",
+    "common.py": "536dd16a28b526171ed346871ac5d122bf1e3ad24779ee49e34873f464a03e97",
+    "compare.py": "94fe2a8fc2c0bbe9ef5e8ae5a6c27df2a621211974bbdcda534044a2b7f6cf89",
+    "dependencies.py": "55b4315689034467e25bb2a84dd35d79ca60d2648186176a4b2e233fca79792e",
+    "fetch_dependencies.py": "d61552e20c0216e6f57116d80c8447987f6ed6b2dc3f51f82bbaaaa441cf52a5",
+    "metadata.py": "7647b1a2339aaf66ea5519bb5f492d4efb1fc1ff52b76183bb2658bd3a7e3127",
+    "plot.py": "ad011f432e3424518097e451f3621e13ede748652d949a88555f401b21fed1d1",
+    "receipt.py": "abdb797faafc4b0645586073c4581b4f7b1a461d207aef08853f5c7e6d4b9efd",
+    "suites.py": "d2713e0c2957c49495f24eeddebc94452e4098be123b26532446515e8f1e0e55",
+    "test_containers.py": "72ecc150b8ab2db7351766e76b751461b90c7ecc4f17340f992876b637a3f14a"
+  },
   "runs": {
     "general": {
-      "recorded_at": "2026-11-10T19:56:11.307500+01:00",
-      "board": "ESP32-D0WD-V3 revision 3.1, COM18",
-      "cases": 5553,
+      "recorded_at": "2026-11-10T20:44:36.902551+00:00",
+      "board": "ESP32-D0WD-V3 (revision v3.1), COM18",
+      "cases": 11553,
       "complete_suites": 1,
       "observations_per_case": 1,
       "timed_samples_per_observation": 7,
       "excluded_records": 0,
-      "harness_commit": "4039bf335f20326628ceb5c535c3fc7218a2ea1b",
+      "library_base_commit": "6e232ae6de0a46a7cecfe7448e699ed4a68e74fc",
+      "harness_base_commit": "6e232ae6de0a46a7cecfe7448e699ed4a68e74fc",
       "harness_source_sha256": {
-        "benchmarks/hashmap/src/main.cpp": "00a4ec0e8183f37f7cb0f279f646eb467604d15fcd0b0ab90d3999fd55c84cf6"
+        "benchmarks/hashmap/src/benchmark_containers.h": "093f972caf60f32f5fdb2291fb7a456fabf52381d605025474ebe2b9b5c9cf16",
+        "benchmarks/hashmap/src/benchmark_keys.h": "27370f8dac5e2d98638e920d91ce8df684c5c86e8d12cb4555c9088453447f5e",
+        "benchmarks/hashmap/src/main.cpp": "2a82101d942b5c42e23ac86b5cc0a9c923727a9f1916fbf36c3f5f25d8d94f27"
       },
+      "source_note": "Benchmark additions are working-tree changes over the base commit; exact measured source hashes are preserved in the bundle.",
       "cpu_mhz": 240,
-      "psram": false,
       "compiler": "xtensa-esp-elf 14.2.0+20251107",
       "flags": [
         "-std=gnu++17",
         "-O2",
         "-DNDEBUG"
       ],
-      "platform": "pioarduino espressif32 55.03.37",
-      "arduino": "3.3.7",
-      "abseil": "20250512.1",
-      "roo_backport_commit": "77aa81a729a40b21c4bd5a69e8abba09863cc281",
+      "firmware_sha256": "d4ac279328e48c79715e578e5ff0776b1f2fc80275e9c0eef7c93f383d8fba19",
+      "firmware_bytes": 1431744,
       "fill_ratio": {
         "numerator": 3,
         "denominator": 4
       },
-      "heap_poisoning": "unrecorded",
+      "heap_poisoning": "light",
       "bundle": "general/raw.tar.gz",
-      "metadata_member": "build_metadata.json",
-      "capture_member": "raw/esp32.log",
       "pdf": "general/benchmark_charts.pdf",
-      "regenerated_summary_sha256": "34ef551a4f2c73b5707f74fb70ed25c2ae57ffaf261861bd450bcd46c5e176d4",
-      "plot_script_sha256": "e93fc1eac7f35febf50efa6e6174977cfb04995426b15da50ef4f1f5c1a28244",
+      "regenerated_summary_sha256": "7d0bf1a27195c8bdd7b14180c2d2e0af69a1d2136d94d1140954528b07597d39",
+      "plot_script_sha256": "ad011f432e3424518097e451f3621e13ede748652d949a88555f401b21fed1d1",
+      "original_firmware_restored": true,
+      "runtime_initialization_records": [
+        "RUNTIME_INIT,static_guards,heap_bytes=216"
+      ],
       "pdf_additional_series": {
         "label": "Roo (SmallString)",
         "source_run": "small_string",
         "inputs_sha256": {
-          "summary.csv": "3e99239e3daf5fbdfe8a3bcb37927ac07016db79f518419271e36d1b63026b53",
-          "build_metadata.json": "30da4d48026f20849487cf09a89b23264aef44e0fa8ef1d6cc861d8d8c26c196"
-        },
-        "payload_mapping": {
-          "string12": "small_string12",
-          "string48": "small_string48"
+          "summary.csv": "7e0082f9fe8cb9b7eda0aee64642b52970ed0aec5ccb7bbf02b144299b690f2d",
+          "build_metadata.json": "8faf0816b8b5687ae6bc8b0e70de5595edafb171023c92a569193404b4c5f744"
         }
       }
     },
     "small_string": {
-      "recorded_at": "2026-11-10T18:56:57.187799+00:00",
-      "board": "ESP32-D0WDQ6 revision 1.1, COM20",
-      "cases": 2142,
+      "recorded_at": "2026-11-10T20:44:36.902551+00:00",
+      "board": "ESP32-D0WDQ6 (revision v1.1), COM20",
+      "cases": 4460,
       "complete_suites": 1,
       "observations_per_case": 1,
       "timed_samples_per_observation": 7,
       "excluded_records": 0,
-      "harness_commit": "2987370609bdb34a062be0b0b070fc95facf0e20",
+      "library_base_commit": "6e232ae6de0a46a7cecfe7448e699ed4a68e74fc",
+      "harness_base_commit": "6e232ae6de0a46a7cecfe7448e699ed4a68e74fc",
       "harness_source_sha256": {
+        "benchmarks/hashmap/src/benchmark_containers.h": "093f972caf60f32f5fdb2291fb7a456fabf52381d605025474ebe2b9b5c9cf16",
         "benchmarks/hashmap/src/benchmark_keys.h": "27370f8dac5e2d98638e920d91ce8df684c5c86e8d12cb4555c9088453447f5e",
-        "benchmarks/hashmap/src/main.cpp": "86dc35f5cd1a26c307dd90902afb13562e9d71a248bc54c0272bda30d775dfd0"
+        "benchmarks/hashmap/src/main.cpp": "2a82101d942b5c42e23ac86b5cc0a9c923727a9f1916fbf36c3f5f25d8d94f27"
       },
+      "source_note": "Benchmark additions are working-tree changes over the base commit; exact measured source hashes are preserved in the bundle.",
       "cpu_mhz": 240,
-      "psram": false,
       "compiler": "xtensa-esp-elf 14.2.0+20251107",
       "flags": [
         "-std=gnu++17",
         "-O2",
         "-DNDEBUG"
       ],
-      "platform": "pioarduino espressif32 55.03.37",
-      "arduino": "3.3.7",
-      "abseil": "20250512.1",
-      "roo_backport_commit": "77aa81a729a40b21c4bd5a69e8abba09863cc281",
+      "firmware_sha256": "d4ac279328e48c79715e578e5ff0776b1f2fc80275e9c0eef7c93f383d8fba19",
+      "firmware_bytes": 1431744,
       "fill_ratio": {
         "numerator": 3,
         "denominator": 4
       },
       "heap_poisoning": "light",
       "bundle": "small_string/raw.tar.gz",
-      "metadata_member": "build_metadata.json",
-      "capture_member": "raw/esp32.log",
       "pdf": "small_string/benchmark_charts.pdf",
-      "regenerated_summary_sha256": "3e99239e3daf5fbdfe8a3bcb37927ac07016db79f518419271e36d1b63026b53",
-      "plot_script_sha256": "e93fc1eac7f35febf50efa6e6174977cfb04995426b15da50ef4f1f5c1a28244"
+      "regenerated_summary_sha256": "7e0082f9fe8cb9b7eda0aee64642b52970ed0aec5ccb7bbf02b144299b690f2d",
+      "plot_script_sha256": "ad011f432e3424518097e451f3621e13ede748652d949a88555f401b21fed1d1",
+      "original_firmware_restored": true,
+      "runtime_initialization_records": [
+        "RUNTIME_INIT,static_guards,heap_bytes=216"
+      ]
     }
   },
   "files": {
-    "README.md": {
-      "bytes": 7337,
-      "sha256": "585810cac6345e158017b57c1bf8dc10e7f5948e3836d4a3785612adc57d2bbc"
+    "general/raw.tar.gz": {
+      "sha256": "e001a68f64a3071d7625756a6b7d788e0f6c17b571ef866d355418777513d0c0",
+      "bytes": 184858
     },
     "general/benchmark_charts.pdf": {
-      "bytes": 412665,
-      "sha256": "c11ee2f8c210483d4b41b010f202457b29458477e5c0abc6e0b4d63f350bc73e"
-    },
-    "general/raw.tar.gz": {
-      "bytes": 91675,
-      "sha256": "b14a0e3b7fd29a1a70c92e01acbecfe81bf8ee8617877501b173f65f78aa4c52"
-    },
-    "small_string/benchmark_charts.pdf": {
-      "bytes": 188662,
-      "sha256": "a26afd3f798907a0c9573cc46c9c027b74dcec3136d301975986c0118c7372f3"
+      "sha256": "c48b42d0ab9747319bc1a3185a92517a2a241ad7aa2699a7f0a1a542ba35b905",
+      "bytes": 671043
     },
     "small_string/raw.tar.gz": {
-      "bytes": 40677,
-      "sha256": "343d794e095e1c9d341ddfa6a7b204114d6e94a6322784c7b706e4210e78f600"
+      "sha256": "4949e9a406dd33bba370bfd33059320c3e4b825082b5b0c59f736b16768977c0",
+      "bytes": 79234
+    },
+    "small_string/benchmark_charts.pdf": {
+      "sha256": "77fb7e5e3b40e120b2dbf4f3eb566bf301c367d358d60d61635ab5267b086c85",
+      "bytes": 302465
     }
   }
 }

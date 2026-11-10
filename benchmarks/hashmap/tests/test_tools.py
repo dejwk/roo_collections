@@ -21,14 +21,16 @@ import fetch_dependencies
 import metadata as build_metadata
 
 
-def fixture(directory, suite="general"):
+def fixture(directory, suite="general", profile="classic"):
     """Generate all cases in protocol order without checking in measurement data."""
     directory.mkdir(parents=True, exist_ok=True)
     log = directory / "esp32.log"
     with log.open("w") as output:
         tag = "" if suite == "general" else f",suite={suite}"
+        if profile != "classic":
+            tag += f",profile={profile}"
         output.write(f"BEGIN,1,chip=synthetic,cpu_mhz=240,psram=0,heap=123456{tag}\n")
-        for name, hashing, key, n, work in sorted(analyze.expected_cases(suite)):
+        for name, hashing, key, n, work in sorted(analyze.expected_cases(suite, profile)):
             output.write(f"ROW,1,{name},{hashing},{key},{n},{work},1.0,2.0,3.0,1,128,28\n")
         output.write("END,1,heap=123456\n")
     metadata = dict(roo_collections_commit="fixture", roo_backport_commit="fixture",
@@ -66,6 +68,37 @@ class ToolsTest(unittest.TestCase):
         self.assertEqual(coverage["excluded_records"], [])
         self.assertNotIn("251 slots", (self.results / "REPORT.md").read_text())
 
+    def test_extended_profiles_include_five_new_maps_without_fixed_capacity_growth(self):
+        """Verifies exact extended coverage and explicit unsupported ETL growth."""
+        import plot
+        from suites import ALL_MAPS
+        for suite, count in (("general", 11553), ("small_string", 4460)):
+            directory = self.root / suite
+            log = fixture(directory, suite, "extended")
+            run_script("analyze.py", log, "--output-dir", directory)
+            results = plot.Results(directory)
+            self.assertEqual(results.profile, "extended")
+            self.assertEqual(results.maps, ALL_MAPS)
+            self.assertEqual(len(results.data), count)
+            self.assertFalse(any(case[0] == "etl" and case[-1] == "build_grow" for case in results.data))
+            self.assertTrue(any(case[0] == "etl" and case[-1] == "build_presized" for case in results.data))
+            self.assertEqual(results.series("etl", "default", results.keys[0], "build_grow"), ([], []))
+            run_script("compare.py", "--baseline", directory, "--updated", directory)
+            comparison = (directory / "COMPARISON.md").read_text()
+            self.assertIn("| etl |", comparison)
+            self.assertIn("| emhash5 |", comparison)
+
+    def test_extended_capture_cannot_be_downgraded_or_mixed_with_classic(self):
+        """Verifies missing competitors cannot pass by using a legacy profile."""
+        log = fixture(self.root / "extended", "general", "extended")
+        log = log.rename(log.with_name("extended.log"))
+        mixed = run_script("analyze.py", self.log, log, "--output-dir", self.results, check=False)
+        self.assertNotEqual(mixed.returncode, 0)
+        self.assertIn("different map profiles", mixed.stderr)
+        log.write_text(log.read_text().replace(",profile=extended", ""))
+        result = run_script("analyze.py", log, "--output-dir", self.results, check=False)
+        self.assertNotEqual(result.returncode, 0)
+
     def test_small_string_suite_is_complete_and_comparable(self):
         before = self.root / "small-before"
         after = self.root / "small-after"
@@ -88,6 +121,7 @@ class ToolsTest(unittest.TestCase):
 
     def test_suite_tag_rejects_mixed_or_unknown_workloads(self):
         small = fixture(self.root / "small", "small_string")
+        small = small.rename(small.with_name("small.log"))
         mixed = run_script("analyze.py", self.log, small, "--output-dir", self.results, check=False)
         self.assertNotEqual(mixed.returncode, 0)
         small.write_text(small.read_text().replace("suite=small_string", "suite=unrecognized"))

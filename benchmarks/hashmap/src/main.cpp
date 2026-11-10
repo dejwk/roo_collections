@@ -21,6 +21,7 @@
 #include "absl/container/internal/hashtable_control_bytes.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/hash/hash.h"
+#include "benchmark_containers.h"
 #include "benchmark_keys.h"
 
 // Arduino defines F() and EXTERNAL macros that collide with Abseil headers.
@@ -146,6 +147,12 @@ struct Factory<std::map<K, V, C, A>> {
   static Map* create(size_t, bool) { return new Map; }
 };
 
+template <class K, class V, class H>
+struct Factory<hashmap_benchmark::EtlMap<K, V, H>> {
+  using Map = hashmap_benchmark::EtlMap<K, V, H>;
+  static Map* create(size_t n, bool) { return new Map(n); }
+};
+
 template <class Map>
 void run_case(const char* name, const char* hashing, const char* key_name,
               const std::vector<typename Map::key_type>& hits,
@@ -154,7 +161,7 @@ void run_case(const char* name, const char* hashing, const char* key_name,
   const unsigned n = hits.size();
   using K = typename Map::key_type;
   using Pair = std::pair<K, uint32_t>;
-  auto fill = [&](Map& m) {
+  auto fill = [&](auto& m) {
     for (unsigned i = 0; i < n; ++i)
       m.insert(Pair(hits[order[i]], order[i] + 1));
   };
@@ -162,7 +169,7 @@ void run_case(const char* name, const char* hashing, const char* key_name,
       heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   {
     std::unique_ptr<Map> owner(Factory<Map>::create(n, false));
-    Map& m = *owner;
+    auto& m = hashmap_benchmark::MapView(*owner);
     // LookupTest.Find checks absent entries before insertion, values after it.
     for (unsigned i = 0; i < n; ++i)
       check(m.find(hits[i]) == m.end(), "empty find");
@@ -177,7 +184,7 @@ void run_case(const char* name, const char* hashing, const char* key_name,
       check(!m.insert(Pair(hits[i], 999)).second, "duplicate insertion");
     }
     {
-      Map copy(m);
+      Map copy(*owner);
       check(copy.size() == n, "copy size");
       for (unsigned i = 0; i < n; ++i) {
         auto it = copy.find(hits[i]);
@@ -186,7 +193,7 @@ void run_case(const char* name, const char* hashing, const char* key_name,
     }
     auto record = [&](const char* workload, auto fn, unsigned units) {
       emit(name, hashing, key_name, n, workload, measure(units, fn), heap,
-           sizeof(Map));
+           hashmap_benchmark::ObjectBytes(*owner));
     };
     record(
         "find_hit",
@@ -227,7 +234,7 @@ void run_case(const char* name, const char* hashing, const char* key_name,
         "copy_ctor",
         [&](unsigned batches) {
           for (unsigned b = 0; b < batches; ++b) {
-            Map copy(m);
+            Map copy(*owner);
             consume(copy);
           }
         },
@@ -290,22 +297,27 @@ void run_case(const char* name, const char* hashing, const char* key_name,
   }
   // Time construction, insertion, and destruction, without the live source map.
   for (bool presized : {false, true}) {
+    if constexpr (hashmap_benchmark::FixedCapacity<Map>::value) {
+      if (!presized) continue;
+    }
     int heap;
+    unsigned object_bytes;
     {
       std::unique_ptr<Map> m(Factory<Map>::create(n, presized));
-      fill(*m);
+      fill(hashmap_benchmark::MapView(*m));
+      object_bytes = hashmap_benchmark::ObjectBytes(*m);
       heap = before - int(heap_caps_get_free_size(MALLOC_CAP_INTERNAL |
                                                   MALLOC_CAP_8BIT));
     }
     auto s = measure(n, [&](unsigned batches) {
       for (unsigned b = 0; b < batches; ++b) {
         std::unique_ptr<Map> m(Factory<Map>::create(n, presized));
-        fill(*m);
+        fill(hashmap_benchmark::MapView(*m));
         consume(*m);
       }
     });
     emit(name, hashing, key_name, n, presized ? "build_presized" : "build_grow",
-         s, heap, sizeof(Map));
+         s, heap, object_bytes);
   }
   check(heap_caps_check_integrity_all(true), "heap integrity");
   int after = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
@@ -343,8 +355,8 @@ void run_type(const char* key_name, int length = 0, bool sequential = false) {
       std::swap(order[i - 1], order[state % i]);
     }
     // Rotate execution order by size and run to reduce systematic order bias.
-    for (unsigned entry = 0; entry < 9; ++entry) {
-      switch ((entry + n + run_number) % 9) {
+    for (unsigned entry = 0; entry < 19; ++entry) {
+      switch ((entry + n + run_number) % 19) {
         case 0:
           run_case<roo_collections::FlatSmallHashMap<Key, uint32_t>>(
               "roo", "default", key_name, hits, misses, order);
@@ -381,6 +393,46 @@ void run_type(const char* key_name, int length = 0, bool sequential = false) {
         case 8:
           run_case<absl::node_hash_map<Key, uint32_t, absl::Hash<Key>>>(
               "absl_node", "absl_hash", key_name, hits, misses, order);
+          break;
+        case 9:
+          run_case<tsl::robin_map<Key, uint32_t>>(
+              "tsl_robin", "default", key_name, hits, misses, order);
+          break;
+        case 10:
+          run_case<tsl::robin_map<Key, uint32_t, absl::Hash<Key>>>(
+              "tsl_robin", "absl_hash", key_name, hits, misses, order);
+          break;
+        case 11:
+          run_case<hashmap_benchmark::DenseMap<Key, uint32_t>>(
+              "unordered_dense", "default", key_name, hits, misses, order);
+          break;
+        case 12:
+          run_case<hashmap_benchmark::DenseMap<Key, uint32_t, absl::Hash<Key>>>(
+              "unordered_dense", "absl_hash", key_name, hits, misses, order);
+          break;
+        case 13:
+          run_case<hashmap_benchmark::EtlMap<Key, uint32_t>>(
+              "etl", "default", key_name, hits, misses, order);
+          break;
+        case 14:
+          run_case<hashmap_benchmark::EtlMap<Key, uint32_t, absl::Hash<Key>>>(
+              "etl", "absl_hash", key_name, hits, misses, order);
+          break;
+        case 15:
+          run_case<hashmap_benchmark::BoostMap<Key, uint32_t>>(
+              "boost_flat", "default", key_name, hits, misses, order);
+          break;
+        case 16:
+          run_case<hashmap_benchmark::BoostMap<Key, uint32_t, absl::Hash<Key>>>(
+              "boost_flat", "absl_hash", key_name, hits, misses, order);
+          break;
+        case 17:
+          run_case<emhash5::HashMap<Key, uint32_t>>(
+              "emhash5", "default", key_name, hits, misses, order);
+          break;
+        case 18:
+          run_case<emhash5::HashMap<Key, uint32_t, absl::Hash<Key>>>(
+              "emhash5", "absl_hash", key_name, hits, misses, order);
           break;
       }
       delay(1);
@@ -421,11 +473,23 @@ void diagnose_large_copy() {
   }
 }
 
+void warm_up_runtime() {
+  // ESP-IDF lazily allocates a mutex and semaphore for C++ local-static
+  // initialization. Exercise that shared runtime before any heap baseline;
+  // otherwise the first container using a guarded static appears to leak.
+  const int before = ESP.getFreeHeap();
+  static const uint32_t initialized = esp_cpu_get_cycle_count();
+  consume(initialized);
+  Serial.printf("RUNTIME_INIT,static_guards,heap_bytes=%d\n",
+                before - int(ESP.getFreeHeap()));
+}
+
 void benchmark(bool small_string = false) {
+  warm_up_runtime();
   ++run_number;
   Serial.printf(
       "BEGIN,%u,chip=%s,revision=%u,cpu_mhz=%u,core=%u,heap=%u,psram=%u,"
-      "compiler=%s,absl=%d.%d,group_width=%u,suite=%s\n",
+      "compiler=%s,absl=%d.%d,group_width=%u,suite=%s,profile=extended\n",
       run_number, ESP.getChipModel(), ESP.getChipRevision(),
       getCpuFrequencyMhz(), xPortGetCoreID(), ESP.getFreeHeap(),
       ESP.getPsramSize(), __VERSION__, ABSL_LTS_RELEASE_VERSION,

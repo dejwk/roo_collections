@@ -10,7 +10,7 @@ import statistics
 import subprocess
 import sys
 
-from suites import SUITES, string_key
+from suites import SUITES, string_key, MAP_PROFILES, supports_workload
 
 FIELDS = "run map hash key n workload min_ns median_ns max_ns batches heap_bytes object_bytes".split()
 GROUP = "map hash key n workload".split()
@@ -21,7 +21,7 @@ WORKLOADS = ("find_hit", "find_miss", "iteration", "copy_ctor", "erase_insert",
 SIZES = (1, 2, 4, 7, 8, 10, 15, 16, 32, 54, 64, 100, 128, 256, 400, 512, 1024, 2048)
 
 
-def expected_cases(suite="general"):
+def expected_cases(suite="general", profile="classic"):
     result = set()
     for key in SUITES[suite]:
         string = string_key(key)
@@ -32,10 +32,12 @@ def expected_cases(suite="general"):
                 continue
             if key == "u64_random" and n > 1024:
                 continue
-            for name in MAPS:
+            for name in MAP_PROFILES[profile]:
                 hashes = ("ordered",) if name == "std_map" else ("default", "absl_hash")
                 for hashing in hashes:
                     for work in WORKLOADS:
+                        if not supports_workload(name, work):
+                            continue
                         if work == "cache_cycle" and (not string or n < 10):
                             continue
                         result.add((name, hashing, key, n, work))
@@ -64,6 +66,7 @@ def main():
     runs = {}
     expected = None
     suite = None
+    profile = None
     metadata = []
     recovered_separators = 0
     excluded = []
@@ -91,7 +94,13 @@ def main():
                 if suite is not None and suite != current_suite:
                     raise ValueError("Cannot combine different benchmark suites")
                 suite = current_suite
-                expected = expected_cases(suite)
+                current_profile = start.get("profile", "classic")
+                if current_profile not in MAP_PROFILES:
+                    raise ValueError(f"Unknown map profile: {current_profile}")
+                if profile is not None and profile != current_profile:
+                    raise ValueError("Cannot combine different map profiles")
+                profile = current_profile
+                expected = expected_cases(suite, profile)
                 runs[run] = {"end": False, "cases": set(), "start": start}
                 metadata.append(f"{path.name}: {line}")
             elif fields[0] == "END":
@@ -215,7 +224,7 @@ def main():
     complete = sum(state["end"] and state["cases"] == expected for state in runs.values())
     minimum = min(len(values) for values in groups.values())
     maximum = max(len(values) for values in groups.values())
-    text = ["# ESP32 hash map results", "", f"Benchmark suite: `{suite}`.", "",
+    text = ["# ESP32 hash map results", "", f"Benchmark suite: `{suite}`; map profile: `{profile}`.", "",
             f"Validated {complete} complete suites, {len(rows)} rows and {minimum}–{maximum} observations per case. "
             "Each observation is the median of seven timed samples. Between-suite variation is unavailable with one suite.", "",
             source_note, "",
@@ -233,17 +242,19 @@ def main():
         text += [f"## {key}, 100 entries, default hashing", "",
                  "| Map | Hit | Miss | Iterate | Copy | Erase+insert | Build | Presized build | Heap B |",
                  "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
-        for name in MAPS:
+        for name in MAP_PROFILES[profile]:
             hashing = "ordered" if name == "std_map" else "default"
-            values = [value(name, hashing, key, 100, work) for work in WORKLOADS[:-1]]
+            values = [f"{value(name, hashing, key, 100, work):.1f}" if supports_workload(name, work) else "—"
+                      for work in WORKLOADS[:-1]]
             heap = value(name, hashing, key, 100, "find_hit", "heap_bytes")
-            text.append("| " + name + " | " + " | ".join(f"{v:.1f}" for v in values) + f" | {heap:.0f} |")
+            text.append("| " + name + " | " + " | ".join(values) + f" | {heap:.0f} |")
         text.append("")
+    peers = [name for name in MAP_PROFILES[profile] if name not in ("roo", "std_map")]
     text += ["## Lookup speed ratios, 16 entries through each fixture limit (at most 512)", "",
              "Geometric mean of competitor/Roo time. Above 1 means Roo is faster; this is a fixed fixture, "
              "not a confidence interval or universal ranking.", "",
-             "| Hash | Key | Workload | Abseil flat / Roo | std unordered / Roo | Abseil node / Roo |",
-             "|---|---|---|---:|---:|---:|"]
+             "| Hash | Key | Workload | " + " | ".join(name + " / Roo" for name in peers) + " |",
+             "|---|---|---|" + "---:|" * len(peers)]
     selected = [n for n in SIZES if 16 <= n <= 512]
     for hashing in ("default", "absl_hash"):
         for key in SUITES[suite]:
@@ -251,14 +262,16 @@ def main():
             for work in ("find_hit", "find_miss"):
                 ratios = [math.exp(statistics.mean(math.log(value(name, hashing, key, n, work) /
                           value("roo", hashing, key, n, work)) for n in key_sizes))
-                          for name in ("absl_flat", "std_unordered", "absl_node")]
+                          for name in peers]
                 text.append(f"| {hashing} | {key} | {work} | " + " | ".join(f"{v:.3f}x" for v in ratios) + " |")
+    if profile == "extended":
+        text += ["", "ETL uses exact fixed capacity N with N buckets. Its embedded storage and adapter are included in heap/object bytes. Dynamic growth is unsupported and omitted; presized construction includes allocating the entire fixed-capacity object."]
     text += ["", "Only the recorded board, toolchain and one deterministic seed are represented. "
              "The suite does not measure immutable owners, read-only base interfaces, heterogeneous lookup, "
              "latency tails, fragmentation after arbitrary lifetimes, peak heap or isolated firmware size. "
              "Maximum fixture sizes are constrained by contiguous memory needed for copies.", ""]
     (out / "excluded_records.json").write_text(json.dumps({
-        "benchmark_suite": suite, "attempted_suites": len(runs), "ended_suites": ended,
+        "benchmark_suite": suite, "map_profile": profile, "attempted_suites": len(runs), "ended_suites": ended,
         "interrupted_suites": len(runs) - ended, "suites_with_complete_case_coverage": complete,
         "minimum_observations_per_case": minimum, "maximum_observations_per_case": maximum,
         "excluded_records": excluded,

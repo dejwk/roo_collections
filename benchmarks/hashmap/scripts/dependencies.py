@@ -14,6 +14,8 @@ from fetch_dependencies import resolve
 roo = Path(os.environ.get("ROO_COLLECTIONS_SOURCE_DIR", REPOSITORY)).expanduser().resolve()
 roots = {"roo_collections": roo, "roo_backport": resolve("roo_backport")}
 absl = resolve("abseil")
+extra_dependencies = {name: resolve(name) for name in json.loads((project / "dependencies.json").read_text())
+                      if name not in ("abseil", "roo_backport")}
 linked = project / ".pio/linked-libs"
 linked.mkdir(parents=True, exist_ok=True)
 for name, source in roots.items():
@@ -24,7 +26,7 @@ for name, source in roots.items():
         link.unlink()
     if not link.exists():
         link.symlink_to(source, target_is_directory=True)
-env.Append(CPPPATH=[str(absl)])
+env.Append(CPPPATH=[str(absl)] + [str(root / "include") for root in extra_dependencies.values()])
 sources = [
     "absl/container/internal/raw_hash_set.cc",
     "absl/container/internal/hashtablez_sampler.cc",
@@ -44,6 +46,8 @@ env.BuildSources(str(project / ".pio/absl-obj"), str(generated))
 platform = env.PioPlatform()
 context = {
     "library_source_roots": {name: str(path) for name, path in roots.items()},
+    "benchmark_dependency_roots": {name: str(root) for name, root in extra_dependencies.items()},
+    "benchmark_profile": "extended",
     "abseil_root": str(absl), "abseil_sources": sources,
     "board": env.GetProjectOption("board"),
     "platform": "pioarduino espressif32 " + platform.version,

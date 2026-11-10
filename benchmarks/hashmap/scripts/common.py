@@ -83,7 +83,15 @@ def source_fingerprint(context):
     for path in sorted((absl / "absl").rglob("*")):
         if path.is_file() and path.suffix in (".h", ".inc", ".cc", ".c", ".S"):
             tree.update(path.relative_to(absl).as_posix().encode() + b"\0" + bytes.fromhex(digest(path)))
+    content = {"abseil": tree.hexdigest()}
+    for name, value in context.get("benchmark_dependency_roots", {}).items():
+        root = Path(value) / "include"
+        tree = hashlib.sha256()
+        for path in sorted(root.rglob("*")):
+            if path.is_file():
+                tree.update(path.relative_to(root).as_posix().encode() + b"\0" + bytes.fromhex(digest(path)))
+        content[name] = tree.hexdigest()
     configurations = {path.name: digest(path) for path in [PROJECT / "platformio.ini", PROJECT / "dependencies.json", *sorted(PROJECT.glob("platformio.local*.ini"))] if path.exists()}
     return {"configuration_sha256": configurations,
             "source_sha256": {name: digest(path) for name, path in sources.items()},
-            "dependency_content_sha256": {"abseil": tree.hexdigest()}}
+            "dependency_content_sha256": content}

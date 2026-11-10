@@ -18,15 +18,20 @@ def validate(name, source, pin):
         if (f"#define ABSL_LTS_RELEASE_VERSION {major}" not in text or
                 f"#define ABSL_LTS_RELEASE_PATCH_LEVEL {patch}" not in text):
             raise ValueError("Abseil source override has the wrong release")
-    else:
+    elif name == "roo_backport":
         info = json.loads((source / "library.json").read_text())
         if info["version"] != pin["version"]:
             raise ValueError("roo_backport source override has the wrong version")
 
+    else:
+        for header in pin["required_headers"]:
+            if not (source / "include" / header).is_file():
+                raise ValueError(f"Missing {name} header: {header}")
+
 
 def resolve(name):
     pin = json.loads((PROJECT / "dependencies.json").read_text())[name]
-    override = os.environ.get(OVERRIDES[name])
+    override = os.environ.get(OVERRIDES[name]) if name in OVERRIDES else None
     if override:
         source = Path(override).expanduser().resolve()
         validate(name, source, pin)
@@ -39,7 +44,8 @@ def resolve(name):
         validate(name, target, pin)
         return target
     if target.exists():
-        raise ValueError(f"Unrecognized dependency directory; remove it or set {OVERRIDES[name]}: {target}")
+        alternative = f" or set {OVERRIDES[name]}" if name in OVERRIDES else ""
+        raise ValueError(f"Unrecognized dependency directory; remove it{alternative}: {target}")
     with tempfile.TemporaryDirectory(prefix=name + "-", dir=cache) as directory:
         temp = Path(directory)
         archive = temp / "source.tar.gz"
@@ -57,7 +63,7 @@ def resolve(name):
 
 
 def main():
-    for name in OVERRIDES:
+    for name in json.loads((PROJECT / "dependencies.json").read_text()):
         print(f"{name}: {resolve(name)}")
 
 

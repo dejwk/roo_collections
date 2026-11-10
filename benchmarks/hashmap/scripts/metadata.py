@@ -86,6 +86,9 @@ def collect(board_label=None):
         source_sha256=fingerprint["source_sha256"], firmware_sha256=digest(firmware), firmware_bytes=firmware.stat().st_size,
         build_inputs_sha256=fingerprint["configuration_sha256"],
         compiler_options=[s for s in command if s.startswith(("-D", "-U", "-f", "-m", "-O", "-std="))])
+    metadata["benchmark_profile"] = context.get("benchmark_profile", "classic")
+    metadata["benchmark_dependencies"] = {name: {key: pin[key] for key in ("version", "sha256", "url")}
+                                           for name, pin in pins.items()}
     policy = (roots["roo_collections"] / "src/roo_collections/impl/flat_small_hashtable_common.h").read_text()
     ratio = re.search(r"kMaxFillRatio\s*=\s*([\d.]+)f?\s*/\s*([\d.]+)f?", policy)
     if ratio:

@@ -10,5 +10,175 @@
     "url": "https://codeload.github.com/dejwk/roo_backport/tar.gz/refs/tags/1.2.4",
     "sha256": "cc9dc2ff40715dc127ea9e0eaf558da6b1db917056d1da14ad31ccb3e19df30d",
     "prefix": "roo_backport-1.2.4"
+  },
+  "robin_map": {
+    "version": "1.4.1",
+    "url": "https://codeload.github.com/Tessil/robin-map/tar.gz/refs/tags/v1.4.1",
+    "sha256": "0e3f53a377fdcdc5f9fed7a4c0d4f99e82bbb64175233bd13427fef9a771f4a1",
+    "prefix": "robin-map-1.4.1",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": [
+      "tsl/robin_map.h"
+    ]
+  },
+  "unordered_dense": {
+    "version": "5.3.3",
+    "url": "https://codeload.github.com/martinus/unordered_dense/tar.gz/refs/tags/v5.3.3",
+    "sha256": "862605ef21424c6c92881aac4cf8f09c3abd91c80588446c83892583228eca67",
+    "prefix": "unordered_dense-5.3.3",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": [
+      "ankerl/unordered_dense.h"
+    ]
+  },
+  "etl": {
+    "version": "20.49.0",
+    "url": "https://codeload.github.com/ETLCPP/etl/tar.gz/refs/tags/20.49.0",
+    "sha256": "b3e7a5544795ec8f4a1b2ab46f6e88fdb78be5a07738f008ce11dd37ed14b6e4",
+    "prefix": "etl-20.49.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": [
+      "etl/unordered_map.h"
+    ]
+  },
+  "emhash": {
+    "version": "1.3.0",
+    "url": "https://codeload.github.com/ktprime/emhash/tar.gz/refs/tags/v1.3.0",
+    "sha256": "94327989a23eb6027d81b267c607a0a5c62d47deb0db3eb22cbdc580a165ba74",
+    "prefix": "emhash-1.3.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": [
+      "emhash/hash_table5.hpp"
+    ]
+  },
+  "boost_unordered": {
+    "version": "boost-1.90.0",
+    "url": "https://codeload.github.com/boostorg/unordered/tar.gz/refs/tags/boost-1.90.0",
+    "sha256": "7dd15a1196e36de483fc287a5487210b596979761c4708b4c3067a717c765a05",
+    "prefix": "unordered-boost-1.90.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": [
+      "boost/unordered/unordered_flat_map.hpp"
+    ]
+  },
+  "boost_assert": {
+    "version": "boost-1.90.0",
+    "url": "https://codeload.github.com/boostorg/assert/tar.gz/refs/tags/boost-1.90.0",
+    "sha256": "1f48f929e69146db222fdf9538ec81c7cbd3ca88b94343644942b477031a3bba",
+    "prefix": "assert-boost-1.90.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": []
+  },
+  "boost_config": {
+    "version": "boost-1.90.0",
+    "url": "https://codeload.github.com/boostorg/config/tar.gz/refs/tags/boost-1.90.0",
+    "sha256": "1390bd79fbf270e40cfe5ac6b899f4a9c4e47139b6e17b4c1f7f78822adaa9fc",
+    "prefix": "config-boost-1.90.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": []
+  },
+  "boost_container_hash": {
+    "version": "boost-1.90.0",
+    "url": "https://codeload.github.com/boostorg/container_hash/tar.gz/refs/tags/boost-1.90.0",
+    "sha256": "415d6a01b2d8a07ab36dbf9e31a8fec6fa0e51185d1015a087c153de28cfaba5",
+    "prefix": "container_hash-boost-1.90.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": []
+  },
+  "boost_core": {
+    "version": "boost-1.90.0",
+    "url": "https://codeload.github.com/boostorg/core/tar.gz/refs/tags/boost-1.90.0",
+    "sha256": "0444b7741bcf20f80ff6a4d191a920f6aba92d26734c81fa481f8fd0a274b487",
+    "prefix": "core-boost-1.90.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": []
+  },
+  "boost_describe": {
+    "version": "boost-1.90.0",
+    "url": "https://codeload.github.com/boostorg/describe/tar.gz/refs/tags/boost-1.90.0",
+    "sha256": "4ca9c54d50c5bd8ec68811475ef96ec1ac0abbfbf19f55789823aabcbb704812",
+    "prefix": "describe-boost-1.90.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": []
+  },
+  "boost_mp11": {
+    "version": "boost-1.90.0",
+    "url": "https://codeload.github.com/boostorg/mp11/tar.gz/refs/tags/boost-1.90.0",
+    "sha256": "ca52bde753586dcba29739cfd55abb473bf80c934c6d49a2b58023ed4e48adf6",
+    "prefix": "mp11-boost-1.90.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": []
+  },
+  "boost_predef": {
+    "version": "boost-1.90.0",
+    "url": "https://codeload.github.com/boostorg/predef/tar.gz/refs/tags/boost-1.90.0",
+    "sha256": "d9144eb3c7d965991e8798fc7e96d5ea862951bffcbdba0b8a23892fd5c99f7c",
+    "prefix": "predef-boost-1.90.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": []
+  },
+  "boost_throw_exception": {
+    "version": "boost-1.90.0",
+    "url": "https://codeload.github.com/boostorg/throw_exception/tar.gz/refs/tags/boost-1.90.0",
+    "sha256": "30e2834ba64587a363750e35c627ee045f89be05d0cc9eab7251414eba88e110",
+    "prefix": "throw_exception-boost-1.90.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": []
+  },
+  "boost_static_assert": {
+    "version": "boost-1.90.0",
+    "url": "https://codeload.github.com/boostorg/static_assert/tar.gz/refs/tags/boost-1.90.0",
+    "sha256": "3b7980c5968d585b04f980bbb4e81bbbf0b6d1a0b7c965c2a3426b0acb4a5f49",
+    "prefix": "static_assert-boost-1.90.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": []
+  },
+  "boost_type_traits": {
+    "version": "boost-1.90.0",
+    "url": "https://codeload.github.com/boostorg/type_traits/tar.gz/refs/tags/boost-1.90.0",
+    "sha256": "d8f1f937a56dacbd5bd3067312896f3b2b84ddf7cbeb93f21e1ffd844e512587",
+    "prefix": "type_traits-boost-1.90.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": []
+  },
+  "boost_preprocessor": {
+    "version": "boost-1.90.0",
+    "url": "https://codeload.github.com/boostorg/preprocessor/tar.gz/refs/tags/boost-1.90.0",
+    "sha256": "4a951411d94423e74a4f1df5b1aa5d51996dbfbf01bec35bc51c53af4707bda3",
+    "prefix": "preprocessor-boost-1.90.0",
+    "include_dirs": [
+      "include"
+    ],
+    "required_headers": []
   }
 }

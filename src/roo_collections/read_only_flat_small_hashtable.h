@@ -91,7 +91,8 @@ class ReadOnlyFlatSmallHashtable
         : ht_(ht), pos_(pos) {}
 
     const ReadOnlyFlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>* ht_;
-    uint16_t pos_;
+    // Use a machine-word index to avoid narrowing each increment on ESP32.
+    uint32_t pos_;
   };
 
   using key_type = Key;

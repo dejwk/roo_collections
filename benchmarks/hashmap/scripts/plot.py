@@ -10,6 +10,8 @@ import os
 from pathlib import Path
 import sys
 
+from suites import GENERAL_KEYS, SMALL_STRING_KEYS, string_key, suite_for_keys
+
 PROJECT = Path(__file__).resolve().parents[1]
 os.environ.setdefault("MPLCONFIGDIR", str(PROJECT / ".pio/matplotlib-cache"))
 
@@ -41,8 +43,12 @@ class Results:
             rows = list(csv.DictReader(stream))
         if not rows:
             raise ValueError("summary.csv is empty")
+        self.suite = suite_for_keys({row["key"] for row in rows})
+        self.keys = GENERAL_KEYS if self.suite == "general" else SMALL_STRING_KEYS
+        self.key_labels = KEY_LABELS if self.suite == "general" else ("SmallString<13> · 12 chars", "SmallString<49> · 48 chars")
+        self.short_keys = SHORT_KEYS if self.suite == "general" else ("SmallString\n12 chars", "SmallString\n48 chars")
         self.data = {}
-        self.sizes = {key: set() for key in KEYS}
+        self.sizes = {key: set() for key in self.keys}
         for row in rows:
             row["n"] = int(row["n"])
             row["runs"] = int(row["runs"])
@@ -51,7 +57,7 @@ class Results:
                 row[field] = float(row[field])
                 if not math.isfinite(row[field]):
                     raise ValueError(f"Non-finite {field}: {row}")
-            if (row["map"] not in MAPS or row["key"] not in KEYS or
+            if (row["map"] not in MAPS or row["key"] not in self.keys or
                     row["workload"] not in WORKS or row["n"] < 1 or row["runs"] < 1):
                 raise ValueError(f"Invalid case: {row}")
             allowed = ("ordered",) if row["map"] == "std_map" else ("default", "absl_hash")
@@ -76,7 +82,7 @@ class Results:
                 for name in MAPS:
                     for hashing in (("ordered",) if name == "std_map" else ("default", "absl_hash")):
                         for work in WORKS:
-                            if work == "cache_cycle" and (not key.startswith("string") or n < 10):
+                            if work == "cache_cycle" and (not string_key(key) or n < 10):
                                 continue
                             expected.add((name, hashing, key, n, work))
         if self.data.keys() != expected:
@@ -148,7 +154,7 @@ def decorate(fig, axes, results, title, subtitle, footer=None):
 
 
 def overview(plt, results, n):
-    for key in KEYS:
+    for key in results.keys:
         if n not in results.sizes[key]:
             raise ValueError(f"Overview size {n} absent for {key}")
     fig, grid = plt.subplots(2, 2, figsize=(13.8, 9.2))
@@ -159,10 +165,10 @@ def overview(plt, results, n):
     for ax, (work, field, factor, title, unit) in zip(grid.flat, panels):
         width = 0.145
         for i, name in enumerate(MAPS):
-            values = [results.get(name, "default", key, n, work, field) * factor for key in KEYS]
-            positions = [j + (i - 2) * width for j in range(len(KEYS))]
+            values = [results.get(name, "default", key, n, work, field) * factor for key in results.keys]
+            positions = [j + (i - 2) * width for j in range(len(results.keys))]
             ax.bar(positions, values, width, color=COLORS[i], label=LABELS[i])
-        ax.set_xticks(range(len(KEYS)), SHORT_KEYS, fontsize=9)
+        ax.set_xticks(range(len(results.keys)), results.short_keys, fontsize=9)
         ax.set_ylim(bottom=0)
         ax.set_title(title, fontsize=11, pad=10)
         ax.set_ylabel(unit)
@@ -176,9 +182,9 @@ def overview(plt, results, n):
 
 
 def timing_grid(plt, results, policy, panels, title, log_y=False):
-    fig, grid = plt.subplots(len(panels), len(KEYS), squeeze=False,
+    fig, grid = plt.subplots(len(panels), len(results.keys), squeeze=False,
                              figsize=(18, 4.1 * len(panels)))
-    for col, (key, key_label) in enumerate(zip(KEYS, KEY_LABELS)):
+    for col, (key, key_label) in enumerate(zip(results.keys, results.key_labels)):
         for row, (work, label, factor, unit) in enumerate(panels):
             ax = grid[row, col]
             for name in MAPS:
@@ -198,7 +204,7 @@ def timing_grid(plt, results, policy, panels, title, log_y=False):
                 ax.set_xlabel("Entries · log₂ scale", fontsize=9)
     # Successful/unsuccessful lookups within each key type share a y range.
     if panels[0][0] == "find_hit":
-        for col in range(len(KEYS)):
+        for col in range(len(results.keys)):
             maximum = max(ax.get_ylim()[1] for ax in grid[:, col])
             for ax in grid[:, col]:
                 ax.set_ylim(0, maximum)
@@ -219,7 +225,7 @@ def plain_ticks():
 
 def cache_chart(plt, results, policy):
     fig, axes = plt.subplots(1, 2, figsize=(13.8, 6.7))
-    for ax, key, label in zip(axes, KEYS[-2:], KEY_LABELS[-2:]):
+    for ax, key, label in zip(axes, results.keys[-2:], results.key_labels[-2:]):
         for name in MAPS:
             line(ax, results, name, policy, key, "cache_cycle")
         sizes = [n for n in results.sizes[key] if n >= 10]
@@ -239,11 +245,11 @@ def cache_chart(plt, results, policy):
 
 
 def memory_chart(plt, results, presizing=False):
-    fig, grid = plt.subplots(2, len(KEYS), figsize=(18, 8.2))
+    fig, grid = plt.subplots(2, len(results.keys), figsize=(18, 8.2))
     policies = ("default", "default") if presizing else ("default", "absl_hash")
     for row, policy in enumerate(policies):
         work = "build_presized" if presizing and row == 1 else "find_hit"
-        for col, (key, label) in enumerate(zip(KEYS, KEY_LABELS)):
+        for col, (key, label) in enumerate(zip(results.keys, results.key_labels)):
             ax = grid[row, col]
             for name in MAPS:
                 line(ax, results, name, policy, key, work, "heap_bytes", 1 / 1024)
@@ -257,7 +263,7 @@ def memory_chart(plt, results, presizing=False):
             ax.set_title(f"{label}\n{hashing}", fontsize=10, pad=9)
             if row == 1:
                 ax.set_xlabel("Entries · log₂ scale", fontsize=9)
-    for col in range(len(KEYS)):
+    for col in range(len(results.keys)):
         low = min(ax.get_ylim()[0] for ax in grid[:, col])
         high = max(ax.get_ylim()[1] for ax in grid[:, col])
         for ax in grid[:, col]:

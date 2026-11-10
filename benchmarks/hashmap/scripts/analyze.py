@@ -10,6 +10,8 @@ import statistics
 import subprocess
 import sys
 
+from suites import SUITES, string_key
+
 FIELDS = "run map hash key n workload min_ns median_ns max_ns batches heap_bytes object_bytes".split()
 GROUP = "map hash key n workload".split()
 MAPS = ("roo", "absl_flat", "std_unordered", "absl_node", "std_map")
@@ -19,11 +21,13 @@ WORKLOADS = ("find_hit", "find_miss", "iteration", "copy_ctor", "erase_insert",
 SIZES = (1, 2, 4, 7, 8, 10, 15, 16, 32, 54, 64, 100, 128, 256, 400, 512, 1024, 2048)
 
 
-def expected_cases():
+def expected_cases(suite="general"):
     result = set()
-    for key in TYPES:
-        string = key.startswith("string")
+    for key in SUITES[suite]:
+        string = string_key(key)
         for n in SIZES:
+            if key == "small_string48" and n > 400:
+                continue
             if string and n > 512:
                 continue
             if key == "u64_random" and n > 1024:
@@ -58,7 +62,8 @@ def main():
         parser.error("--allow-partial-suites requires --min-observations")
     rows = []
     runs = {}
-    expected = expected_cases()
+    expected = None
+    suite = None
     metadata = []
     recovered_separators = 0
     excluded = []
@@ -80,6 +85,13 @@ def main():
                 start = dict(part.split("=", 1) for part in fields[2:])
                 if start.get("cpu_mhz") != "240" or start.get("psram") != "0":
                     raise ValueError(f"Unexpected device configuration: {line}")
+                current_suite = start.get("suite", "general")
+                if current_suite not in SUITES:
+                    raise ValueError(f"Unknown benchmark suite: {current_suite}")
+                if suite is not None and suite != current_suite:
+                    raise ValueError("Cannot combine different benchmark suites")
+                suite = current_suite
+                expected = expected_cases(suite)
                 runs[run] = {"end": False, "cases": set(), "start": start}
                 metadata.append(f"{path.name}: {line}")
             elif fields[0] == "END":
@@ -203,7 +215,7 @@ def main():
     complete = sum(state["end"] and state["cases"] == expected for state in runs.values())
     minimum = min(len(values) for values in groups.values())
     maximum = max(len(values) for values in groups.values())
-    text = ["# ESP32 hash map results", "",
+    text = ["# ESP32 hash map results", "", f"Benchmark suite: `{suite}`.", "",
             f"Validated {complete} complete suites, {len(rows)} rows and {minimum}–{maximum} observations per case. "
             "Each observation is the median of seven timed samples. Between-suite variation is unavailable with one suite.", "",
             source_note, "",
@@ -217,7 +229,7 @@ def main():
             f"Transport separators recovered: {recovered_separators}; excluded records: {len(excluded)}. "
             "Payload fields are never repaired. See excluded_records.json for coverage and exclusions.", "",
             "## Device records", "", "```text", *metadata, "```", ""]
-    for key in TYPES:
+    for key in SUITES[suite]:
         text += [f"## {key}, 100 entries, default hashing", "",
                  "| Map | Hit | Miss | Iterate | Copy | Erase+insert | Build | Presized build | Heap B |",
                  "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
@@ -227,17 +239,18 @@ def main():
             heap = value(name, hashing, key, 100, "find_hit", "heap_bytes")
             text.append("| " + name + " | " + " | ".join(f"{v:.1f}" for v in values) + f" | {heap:.0f} |")
         text.append("")
-    text += ["## Lookup speed ratios, 16–512 entries", "",
+    text += ["## Lookup speed ratios, 16 entries through each fixture limit (at most 512)", "",
              "Geometric mean of competitor/Roo time. Above 1 means Roo is faster; this is a fixed fixture, "
              "not a confidence interval or universal ranking.", "",
              "| Hash | Key | Workload | Abseil flat / Roo | std unordered / Roo | Abseil node / Roo |",
              "|---|---|---|---:|---:|---:|"]
     selected = [n for n in SIZES if 16 <= n <= 512]
     for hashing in ("default", "absl_hash"):
-        for key in TYPES:
+        for key in SUITES[suite]:
+            key_sizes = [n for n in selected if ("roo", hashing, key, n, "find_hit") in summary]
             for work in ("find_hit", "find_miss"):
                 ratios = [math.exp(statistics.mean(math.log(value(name, hashing, key, n, work) /
-                          value("roo", hashing, key, n, work)) for n in selected))
+                          value("roo", hashing, key, n, work)) for n in key_sizes))
                           for name in ("absl_flat", "std_unordered", "absl_node")]
                 text.append(f"| {hashing} | {key} | {work} | " + " | ".join(f"{v:.3f}x" for v in ratios) + " |")
     text += ["", "Only the recorded board, toolchain and one deterministic seed are represented. "
@@ -245,7 +258,7 @@ def main():
              "latency tails, fragmentation after arbitrary lifetimes, peak heap or isolated firmware size. "
              "Maximum fixture sizes are constrained by contiguous memory needed for copies.", ""]
     (out / "excluded_records.json").write_text(json.dumps({
-        "attempted_suites": len(runs), "ended_suites": ended,
+        "benchmark_suite": suite, "attempted_suites": len(runs), "ended_suites": ended,
         "interrupted_suites": len(runs) - ended, "suites_with_complete_case_coverage": complete,
         "minimum_observations_per_case": minimum, "maximum_observations_per_case": maximum,
         "excluded_records": excluded,

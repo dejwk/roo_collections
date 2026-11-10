@@ -12,7 +12,9 @@ def main():
     parser.add_argument("--runs", type=int, default=1)
     parser.add_argument("--timeout", type=float, default=1800)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--suite", choices=("general", "small_string"), default="general")
     args = parser.parse_args()
+    command = b"s" if args.suite == "small_string" else b"r"
     connection = serial.Serial(port=None, baudrate=115200, timeout=1)
     connection.dtr = False
     connection.rts = False
@@ -25,7 +27,7 @@ def main():
     with connection, args.output.open("x", buffering=1) as output:
         time.sleep(2)
         connection.reset_input_buffer()
-        connection.write(b"r")
+        connection.write(command)
         while time.monotonic() - started < args.timeout:
             line = connection.readline().decode("utf-8", errors="replace")
             if line:
@@ -41,7 +43,7 @@ def main():
                     if completed == args.runs:
                         print(f"Captured {rows} rows in {completed} complete runs", flush=True)
                         return
-                    connection.write(b"r")
+                    connection.write(command)
             now = time.monotonic()
             if now - last_progress >= 15:
                 print(f"{now - started:.0f}s: {rows} rows, {completed} runs; "

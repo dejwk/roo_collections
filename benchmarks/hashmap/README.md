@@ -2,8 +2,8 @@
 
 Compare `roo_collections::FlatSmallHashMap`, `absl::flat_hash_map`,
 `std::unordered_map`, `absl::node_hash_map`, and `std::map` on a classic ESP32.
-The firmware was imported unchanged from the prototype used for the recorded
-experiments. The general tools live beside the library; build directories,
+The general workloads preserve the prototype fixtures; a separate SmallString
+suite adds inline string keys. The general tools live beside the library; build directories,
 dependencies, captures, CSV tables, plots and firmware backups are Git-ignored.
 
 The benchmark dependencies are separate from the library's normal dependencies.
@@ -27,6 +27,31 @@ mapped values are uint32. Hit and miss sets are disjoint and visits/insertion
 use a reproducible shuffle. Each hash map runs with its default hash and with
 `absl::Hash<Key>` explicitly supplied; `std::map` uses ordering. Shared hashing
 does not normalize hasher type traits or container capacity/load policies.
+
+The separate `small_string` suite has 2,142 cases. It uses
+`roo_collections::SmallString<13>` and `SmallString<49>` for the same 12- and
+48-character payloads (capacities include the trailing null). Fixture bytes,
+visit order, sizes, correctness checks, timing and workloads match the string
+portion of the general suite, including cache churn. The 48-character fixture stops at 400 entries: at 512,
+Roo growth needed a 57,064-byte block while only 55,284 contiguous bytes remained
+with both query vectors and the old table alive (147,608 bytes free in total).
+The 12-character fixture still reaches 512 entries. This is a fixture/peak
+contiguous-memory limit, not a final-size limit for a presized table.
+`SmallString` stores keys
+inline; its current length operation scans for the terminator.
+
+Benchmark-only adapters in `src/benchmark_keys.h` provide lexicographic ordering
+for `std::map`, `std::hash<std::string_view>` for `std::unordered_map`, and an
+`AbslHashValue` hook delegating to `absl::string_view`. Roo's default continues
+to use its native SmallString hash. All four shared-hash containers use
+`absl::Hash<SmallString<N>>`. These adapters are not library API additions.
+
+Both suites are in one firmware. Send `r` for general or `s` for SmallString;
+with the capture tool, select `--suite small_string`. The `BEGIN` record names
+the suite. Analysis automatically selects its complete expected case set and
+rejects mixed suites. Legacy captures without a suite tag remain general.
+Compare candidates within the same suite and harness; do not treat old general
+and newly compiled SmallString timings as a controlled string-type comparison.
 
 Sizes are 1, 2, 4, 7, 8, 10, 15, 16, 32, 54, 64, 100, 128, 256, 400, 512,
 1024 and 2048. Uint64 cases stop at 1024 and string cases at 512 because fixtures,
@@ -73,8 +98,10 @@ python scripts/metadata.py --output-dir results/my-run --board-label "my ESP32"
 On Windows activate `.venv\Scripts\Activate.ps1` instead; source linking requires
 symlink support (for example, Windows Developer Mode). PlatformIO pins
 pioarduino 55.03.37 (Arduino 3.3.7); `dependencies.json` pins Abseil 20250512.1
-and roo_backport 1.2.4 with SHA-256 checksums. Downloads go under `.pio/` and
-the user-level PlatformIO package cache, outside Git history.
+and roo_backport 1.2.4 with SHA-256 checksums. The Python requirements also pin
+standalone esptool 5.1.0 for the backup/restore commands; PlatformIO manages its
+own uploader separately. Downloads go under `.pio/` and the user-level
+PlatformIO package cache, outside Git history.
 
 The library under test defaults to this repository. Set
 `ROO_COLLECTIONS_SOURCE_DIR` to test a separate checkout or frozen snapshot.
@@ -109,9 +136,13 @@ python scripts/backup_flash.py --port PORT --baud 460800 \
 pio run -t upload --upload-port PORT
 python scripts/capture.py --port PORT --runs 1 \
   --output results/my-run/esp32.log
+# Separate SmallString run, with the same flashed firmware:
+python scripts/metadata.py --output-dir results/small-string --board-label "my ESP32"
+python scripts/capture.py --port PORT --runs 1 --suite small_string \
+  --output results/small-string/esp32.log
 ```
 
-The firmware waits for `r`; capture requests it and preserves `BEGIN`, `ROW`,
+The firmware waits for `r` or `s`; capture requests the selected suite and preserves `BEGIN`, `ROW`,
 `END` records. Capture refuses to overwrite an existing transcript. The default
 is one suite. A comparison can reuse a previous validated baseline; there is no
 automatic baseline run or source modification.
@@ -137,6 +168,10 @@ python scripts/analyze.py results/my-run/esp32.log --output-dir results/my-run
 python scripts/compare.py --baseline results/baseline --updated results/my-run
 python -m pip install -r scripts/requirements-charts.txt
 python scripts/plot.py --results-dir results/my-run
+
+# Analyze and plot the separate SmallString run:
+python scripts/analyze.py results/small-string/esp32.log --output-dir results/small-string
+python scripts/plot.py --results-dir results/small-string
 ```
 
 Analysis requires complete coverage, valid numeric fields, ordered samples and
@@ -194,3 +229,14 @@ python -m unittest discover -s tests -v
 
 Tests generate small synthetic fixtures in temporary storage; no board,
 downloaded dependencies, stored result history or plotting packages are needed.
+
+After dependency setup, validate the SmallString adapters with a host C++17
+compiler (adjust the include paths if using dependency source overrides):
+
+```sh
+c++ -std=c++17 -fno-exceptions -fno-rtti -Isrc -I../../src \
+  -I.pio/dependencies/abseil-20250512.1 \
+  -I.pio/dependencies/roo_backport-1.2.4/src \
+  tests/keys_test.cpp -o .pio/keys_test
+.pio/keys_test
+```

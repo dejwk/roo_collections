@@ -1,10 +1,10 @@
 // Workload adaptations of Abseil 20250512.1 raw_hash_set_benchmark.cc
 // and unordered_map_lookup_test.h. See README.md for provenance and changes.
 // Copyright 2018 The Abseil Authors. Licensed under Apache-2.0.
-#include <esp_heap_caps.h>
-#include <esp_timer.h>
 #include <esp_cpu.h>
+#include <esp_heap_caps.h>
 #include <esp_rom_sys.h>
+#include <esp_timer.h>
 
 #include <algorithm>
 #include <array>
@@ -18,11 +18,14 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/node_hash_map.h"
 #include "absl/container/internal/hashtable_control_bytes.h"
+#include "absl/container/node_hash_map.h"
 #include "absl/hash/hash.h"
+#include "benchmark_keys.h"
+
 // Arduino defines F() and EXTERNAL macros that collide with Abseil headers.
 #include <Arduino.h>
+
 #include "roo_collections/flat_small_hash_map.h"
 
 namespace {
@@ -32,7 +35,8 @@ volatile uint32_t sink;
 uint32_t run_number = 0;
 
 inline void barrier() { asm volatile("" ::: "memory"); }
-template <class T> inline void consume(const T& value) {
+template <class T>
+inline void consume(const T& value) {
   asm volatile("" : : "m"(value) : "memory");
 }
 [[noreturn]] void fail(const char* reason) {
@@ -40,10 +44,16 @@ template <class T> inline void consume(const T& value) {
   Serial.flush();
   while (true) delay(1000);
 }
-void check(bool condition, const char* reason) { if (!condition) fail(reason); }
+void check(bool condition, const char* reason) {
+  if (!condition) fail(reason);
+}
 
-struct Stats { double minimum, median, maximum; uint32_t batches; };
-template <class Fn> Stats measure(uint32_t units_per_batch, Fn fn) {
+struct Stats {
+  double minimum, median, maximum;
+  uint32_t batches;
+};
+template <class Fn>
+Stats measure(uint32_t units_per_batch, Fn fn) {
   uint32_t batches = 1;
   auto time = [&](uint32_t count) {
     barrier();
@@ -61,36 +71,40 @@ template <class Fn> Stats measure(uint32_t units_per_batch, Fn fn) {
   for (double& sample : samples) {
     delay(1);
     uint32_t cycles = time(batches);
-    sample = double(cycles) * (1000.0 / 240.0) /
-             (double(batches) * units_per_batch);
+    sample =
+        double(cycles) * (1000.0 / 240.0) / (double(batches) * units_per_batch);
   }
   std::sort(samples.begin(), samples.end());
   return {samples.front(), samples[kSamples / 2], samples.back(), batches};
 }
 
 void emit(const char* map, const char* hashing, const char* keys, unsigned n,
-          const char* workload, Stats s, int heap_bytes, unsigned object_bytes) {
+          const char* workload, Stats s, int heap_bytes,
+          unsigned object_bytes) {
   // libc's dtoa caches allocate lazily at some magnitudes, contaminating later
   // heap baselines. Print fixed-point nanoseconds using integer formatting.
   uint64_t lo = uint64_t(s.minimum * 1000 + 0.5);
   uint64_t mid = uint64_t(s.median * 1000 + 0.5);
   uint64_t hi = uint64_t(s.maximum * 1000 + 0.5);
-  Serial.printf("ROW,%u,%s,%s,%s,%u,%s,%llu.%03u,%llu.%03u,%llu.%03u,%u,%d,%u\n",
-                run_number, map, hashing, keys, n, workload,
-                lo / 1000, unsigned(lo % 1000), mid / 1000, unsigned(mid % 1000),
-                hi / 1000, unsigned(hi % 1000), s.batches,
-                heap_bytes, object_bytes);
+  Serial.printf(
+      "ROW,%u,%s,%s,%s,%u,%s,%llu.%03u,%llu.%03u,%llu.%03u,%u,%d,%u\n",
+      run_number, map, hashing, keys, n, workload, lo / 1000,
+      unsigned(lo % 1000), mid / 1000, unsigned(mid % 1000), hi / 1000,
+      unsigned(hi % 1000), s.batches, heap_bytes, object_bytes);
   Serial.flush();
 }
 
 // SplitMix's invertible 32-bit finalizer generates deterministic unique keys.
 uint32_t mix(uint32_t x) {
-  x ^= x >> 16; x *= 0x7feb352dU;
-  x ^= x >> 15; x *= 0x846ca68bU;
+  x ^= x >> 16;
+  x *= 0x7feb352dU;
+  x ^= x >> 15;
+  x *= 0x846ca68bU;
   return x ^ (x >> 16);
 }
-template <class Key> Key make_key(uint32_t index, int length, bool sequential) {
-  if constexpr (std::is_same<Key, std::string>::value) {
+template <class Key>
+Key make_key(uint32_t index, int length, bool sequential) {
+  if constexpr (hashmap_benchmark::IsStringKey<Key>::value) {
     std::string value(length, ' ');
     uint32_t state = mix(index + 0x1234567U);
     for (int i = 0; i < length; ++i) {
@@ -98,17 +112,21 @@ template <class Key> Key make_key(uint32_t index, int length, bool sequential) {
       value[i] = char(0x20 + state % 95);  // Abseil printable ASCII generator.
     }
     // Fixed-length printable prefix makes disjoint key sets provable.
-    for (int i = 0; i < 5; ++i) { value[i] = char(0x20 + index % 95); index /= 95; }
-    return value;
+    for (int i = 0; i < 5; ++i) {
+      value[i] = char(0x20 + index % 95);
+      index /= 95;
+    }
+    return Key(value);
   } else if constexpr (sizeof(Key) == 8) {
-    return sequential ? Key(index) :
-        (Key(mix(index)) << 32) | Key(mix(index + 0x9e3779b9U));
+    return sequential ? Key(index)
+                      : (Key(mix(index)) << 32) | Key(mix(index + 0x9e3779b9U));
   } else {
     return sequential ? Key(index) : Key(mix(index));
   }
 }
 
-template <class Map> struct Factory {
+template <class Map>
+struct Factory {
   static Map* create(size_t n, bool presized) {
     Map* m = new Map;
     if (presized) m->reserve(n);
@@ -137,16 +155,20 @@ void run_case(const char* name, const char* hashing, const char* key_name,
   using K = typename Map::key_type;
   using Pair = std::pair<K, uint32_t>;
   auto fill = [&](Map& m) {
-    for (unsigned i = 0; i < n; ++i) m.insert(Pair(hits[order[i]], order[i] + 1));
+    for (unsigned i = 0; i < n; ++i)
+      m.insert(Pair(hits[order[i]], order[i] + 1));
   };
-  const int before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  const int before =
+      heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   {
     std::unique_ptr<Map> owner(Factory<Map>::create(n, false));
     Map& m = *owner;
     // LookupTest.Find checks absent entries before insertion, values after it.
-    for (unsigned i = 0; i < n; ++i) check(m.find(hits[i]) == m.end(), "empty find");
+    for (unsigned i = 0; i < n; ++i)
+      check(m.find(hits[i]) == m.end(), "empty find");
     fill(m);
-    const int heap = before - int(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    const int heap = before - int(heap_caps_get_free_size(MALLOC_CAP_INTERNAL |
+                                                          MALLOC_CAP_8BIT));
     check(m.size() == n, "insert size");
     for (unsigned i = 0; i < n; ++i) {
       auto it = m.find(hits[i]);
@@ -163,76 +185,101 @@ void run_case(const char* name, const char* hashing, const char* key_name,
       }
     }
     auto record = [&](const char* workload, auto fn, unsigned units) {
-      emit(name, hashing, key_name, n, workload, measure(units, fn), heap, sizeof(Map));
+      emit(name, hashing, key_name, n, workload, measure(units, fn), heap,
+           sizeof(Map));
     };
-    record("find_hit", [&](unsigned batches) {
-      uint32_t sum = 0;
-      for (unsigned b = 0; b < batches; ++b) {
-        barrier();
-        for (unsigned j = 0; j < n; ++j) {
-          auto it = m.find(hits[order[j]]);
-          sum += it == m.end() ? 0 : it->second;
-        }
-      }
-      sink = sum;
-    }, n);
-    record("find_miss", [&](unsigned batches) {
-      uint32_t found = 0;
-      for (unsigned b = 0; b < batches; ++b) {
-        barrier();
-        for (unsigned j = 0; j < n; ++j) found += m.find(misses[order[j]]) != m.end();
-      }
-      sink = found;
-    }, n);
-    record("iteration", [&](unsigned batches) {
-      for (unsigned b = 0; b < batches; ++b) {
-        barrier();
-        for (auto it = m.begin(); it != m.end(); ++it) consume(*it);
-      }
-    }, n);
-    record("copy_ctor", [&](unsigned batches) {
-      for (unsigned b = 0; b < batches; ++b) { Map copy(m); consume(copy); }
-    }, n);
+    record(
+        "find_hit",
+        [&](unsigned batches) {
+          uint32_t sum = 0;
+          for (unsigned b = 0; b < batches; ++b) {
+            barrier();
+            for (unsigned j = 0; j < n; ++j) {
+              auto it = m.find(hits[order[j]]);
+              sum += it == m.end() ? 0 : it->second;
+            }
+          }
+          sink = sum;
+        },
+        n);
+    record(
+        "find_miss",
+        [&](unsigned batches) {
+          uint32_t found = 0;
+          for (unsigned b = 0; b < batches; ++b) {
+            barrier();
+            for (unsigned j = 0; j < n; ++j)
+              found += m.find(misses[order[j]]) != m.end();
+          }
+          sink = found;
+        },
+        n);
+    record(
+        "iteration",
+        [&](unsigned batches) {
+          for (unsigned b = 0; b < batches; ++b) {
+            barrier();
+            for (auto it = m.begin(); it != m.end(); ++it) consume(*it);
+          }
+        },
+        n);
+    record(
+        "copy_ctor",
+        [&](unsigned batches) {
+          for (unsigned b = 0; b < batches; ++b) {
+            Map copy(m);
+            consume(copy);
+          }
+        },
+        n);
     // BM_EraseEmplace: delete/reinsert the same key, retaining a constant size.
-    record("erase_insert", [&](unsigned batches) {
-      for (unsigned b = 0; b < batches; ++b) {
-        for (unsigned i = 0; i < n; ++i) {
-          const unsigned j = order[i];
-          m.erase(hits[j]);
-          m.insert(Pair(hits[j], j + 1));
-        }
-        consume(m);
-      }
-    }, n);  // one unit = an erase + an insert
+    record(
+        "erase_insert",
+        [&](unsigned batches) {
+          for (unsigned b = 0; b < batches; ++b) {
+            for (unsigned i = 0; i < n; ++i) {
+              const unsigned j = order[i];
+              m.erase(hits[j]);
+              m.insert(Pair(hits[j], j + 1));
+            }
+            consume(m);
+          }
+        },
+        n);  // one unit = an erase + an insert
     check(m.size() == n, "erase/insert size");
     for (unsigned i = 0; i < n; ++i) {
       auto it = m.find(hits[i]);
       check(it != m.end() && it->second == i + 1, "erase/insert value");
     }
-    if constexpr (std::is_same<K, std::string>::value) {
+    if constexpr (hashmap_benchmark::IsStringKey<K>::value) {
       if (n >= 10) {
         // BM_CacheInSteadyState: 90 hits in the newest 10 entries, 10 misses,
-        // evict oldest, insert new. Pre-generated keys exclude RNG/string setup.
+        // evict oldest, insert new. Pre-generated keys exclude RNG/string
+        // setup.
         std::vector<const K*> pool;
         pool.reserve(2 * n);
         for (const auto& key : hits) pool.push_back(&key);
         for (const auto& key : misses) pool.push_back(&key);
         unsigned oldest = 0;
-        record("cache_cycle", [&](unsigned batches) {
-          uint32_t found = 0;
-          for (unsigned b = 0; b < batches; ++b) {
-            barrier();
-            for (unsigned i = 0; i < 90; ++i)
-              found += m.find(*pool[(oldest + n - 1 - i % 10) % (2 * n)]) != m.end();
-            for (unsigned i = 0; i < 10; ++i)
-              found += m.find(*pool[(oldest + n + i) % (2 * n)]) != m.end();
-            m.erase(*pool[oldest]);
-            unsigned next = (oldest + n) % (2 * n);
-            m.insert(Pair(*pool[next], 1));
-            oldest = (oldest + 1) % (2 * n);
-          }
-          sink = found;
-        }, 1);  // one unit = 100 finds + erase + insert
+        record(
+            "cache_cycle",
+            [&](unsigned batches) {
+              uint32_t found = 0;
+              for (unsigned b = 0; b < batches; ++b) {
+                barrier();
+                for (unsigned i = 0; i < 90; ++i)
+                  found += m.find(*pool[(oldest + n - 1 - i % 10) % (2 * n)]) !=
+                           m.end();
+                for (unsigned i = 0; i < 10; ++i)
+                  found += m.find(*pool[(oldest + n + i) % (2 * n)]) != m.end();
+                m.erase(*pool[oldest]);
+                unsigned next = (oldest + n) % (2 * n);
+                m.insert(Pair(*pool[next], 1));
+                oldest = (oldest + 1) % (2 * n);
+              }
+              sink = found;
+            },
+            1);  // one unit = 100 finds + erase + insert
         check(m.size() == n, "cache size");
         for (unsigned i = 0; i < 2 * n; ++i) {
           bool expected = (i + 2 * n - oldest) % (2 * n) < n;
@@ -247,7 +294,8 @@ void run_case(const char* name, const char* hashing, const char* key_name,
     {
       std::unique_ptr<Map> m(Factory<Map>::create(n, presized));
       fill(*m);
-      heap = before - int(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+      heap = before - int(heap_caps_get_free_size(MALLOC_CAP_INTERNAL |
+                                                  MALLOC_CAP_8BIT));
     }
     auto s = measure(n, [&](unsigned batches) {
       for (unsigned b = 0; b < batches; ++b) {
@@ -262,21 +310,27 @@ void run_case(const char* name, const char* hashing, const char* key_name,
   check(heap_caps_check_integrity_all(true), "heap integrity");
   int after = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   if (after != before)
-    Serial.printf("HEAP_DELTA,%s,%s,%s,%u,before=%d,after=%d\n",
-                  name, hashing, key_name, n, before, after);
+    Serial.printf("HEAP_DELTA,%s,%s,%s,%u,before=%d,after=%d\n", name, hashing,
+                  key_name, n, before, after);
   check(after == before, "heap leak");
 }
 
 template <class Key>
 void run_type(const char* key_name, int length = 0, bool sequential = false) {
   // Includes exact Abseil EraseEmplace / Iteration sizes and growth boundaries.
-  const unsigned sizes[] = {1, 2, 4, 7, 8, 10, 15, 16, 32, 54, 64, 100, 128,
-                            256, 400, 512, 1024, 2048};
+  const unsigned sizes[] = {1,  2,  4,   7,   8,   10,  15,  16,   32,
+                            54, 64, 100, 128, 256, 400, 512, 1024, 2048};
   for (unsigned n : sizes) {
+    // Inline 48-character fixtures leave too little contiguous memory for
+    // old/new growing tables together at 512 entries on the classic ESP32.
+    if constexpr (std::is_same<Key, roo_collections::SmallString<49>>::value) {
+      if (n > 400) continue;
+    }
     if (length && n > 512) continue;
     if (sizeof(Key) == 8 && n > 1024) continue;
     std::vector<Key> hits, misses;
-    hits.reserve(n); misses.reserve(n);
+    hits.reserve(n);
+    misses.reserve(n);
     for (unsigned i = 0; i < n; ++i) {
       hits.push_back(make_key<Key>(i + 1, length, sequential));
       misses.push_back(make_key<Key>(i + 100000, length, sequential));
@@ -291,24 +345,43 @@ void run_type(const char* key_name, int length = 0, bool sequential = false) {
     // Rotate execution order by size and run to reduce systematic order bias.
     for (unsigned entry = 0; entry < 9; ++entry) {
       switch ((entry + n + run_number) % 9) {
-        case 0: run_case<roo_collections::FlatSmallHashMap<Key, uint32_t>>(
-            "roo", "default", key_name, hits, misses, order); break;
-        case 1: run_case<absl::flat_hash_map<Key, uint32_t>>(
-            "absl_flat", "default", key_name, hits, misses, order); break;
-        case 2: run_case<std::unordered_map<Key, uint32_t>>(
-            "std_unordered", "default", key_name, hits, misses, order); break;
-        case 3: run_case<absl::node_hash_map<Key, uint32_t>>(
-            "absl_node", "default", key_name, hits, misses, order); break;
-        case 4: run_case<std::map<Key, uint32_t>>(
-            "std_map", "ordered", key_name, hits, misses, order); break;
-        case 5: run_case<roo_collections::FlatSmallHashMap<Key, uint32_t, absl::Hash<Key>>>(
-            "roo", "absl_hash", key_name, hits, misses, order); break;
-        case 6: run_case<absl::flat_hash_map<Key, uint32_t, absl::Hash<Key>>>(
-            "absl_flat", "absl_hash", key_name, hits, misses, order); break;
-        case 7: run_case<std::unordered_map<Key, uint32_t, absl::Hash<Key>>>(
-            "std_unordered", "absl_hash", key_name, hits, misses, order); break;
-        case 8: run_case<absl::node_hash_map<Key, uint32_t, absl::Hash<Key>>>(
-            "absl_node", "absl_hash", key_name, hits, misses, order); break;
+        case 0:
+          run_case<roo_collections::FlatSmallHashMap<Key, uint32_t>>(
+              "roo", "default", key_name, hits, misses, order);
+          break;
+        case 1:
+          run_case<absl::flat_hash_map<Key, uint32_t>>(
+              "absl_flat", "default", key_name, hits, misses, order);
+          break;
+        case 2:
+          run_case<std::unordered_map<Key, uint32_t>>(
+              "std_unordered", "default", key_name, hits, misses, order);
+          break;
+        case 3:
+          run_case<absl::node_hash_map<Key, uint32_t>>(
+              "absl_node", "default", key_name, hits, misses, order);
+          break;
+        case 4:
+          run_case<std::map<Key, uint32_t>>("std_map", "ordered", key_name,
+                                            hits, misses, order);
+          break;
+        case 5:
+          run_case<roo_collections::FlatSmallHashMap<Key, uint32_t,
+                                                     absl::Hash<Key>>>(
+              "roo", "absl_hash", key_name, hits, misses, order);
+          break;
+        case 6:
+          run_case<absl::flat_hash_map<Key, uint32_t, absl::Hash<Key>>>(
+              "absl_flat", "absl_hash", key_name, hits, misses, order);
+          break;
+        case 7:
+          run_case<std::unordered_map<Key, uint32_t, absl::Hash<Key>>>(
+              "std_unordered", "absl_hash", key_name, hits, misses, order);
+          break;
+        case 8:
+          run_case<absl::node_hash_map<Key, uint32_t, absl::Hash<Key>>>(
+              "absl_node", "absl_hash", key_name, hits, misses, order);
+          break;
       }
       delay(1);
     }
@@ -318,7 +391,8 @@ void run_type(const char* key_name, int length = 0, bool sequential = false) {
 void diagnose_large_copy() {
   using Map = absl::flat_hash_map<uint64_t, uint32_t, absl::Hash<uint64_t>>;
   std::vector<uint64_t> hits, misses;
-  hits.reserve(2048); misses.reserve(2048);
+  hits.reserve(2048);
+  misses.reserve(2048);
   for (unsigned i = 0; i < 2048; ++i) {
     hits.push_back(make_key<uint64_t>(i + 1, 0, false));
     misses.push_back(make_key<uint64_t>(i + 100000, 0, false));
@@ -327,14 +401,17 @@ void diagnose_large_copy() {
   std::iota(order.begin(), order.end(), 0);
   uint32_t state = 0x12345678;
   for (unsigned i = 2048; i > 1; --i) {
-    state = mix(state + i); std::swap(order[i - 1], order[state % i]);
+    state = mix(state + i);
+    std::swap(order[i - 1], order[state % i]);
   }
   std::unique_ptr<Map> owner(new Map);
   for (unsigned i : order) owner->insert(std::make_pair(hits[i], i + 1));
-  Serial.printf("LARGE_COPY,entries=%u,slots=%u,free=%u,largest=%u\n",
-                unsigned(owner->size()), unsigned(owner->capacity()),
-                unsigned(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)),
-                unsigned(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)));
+  Serial.printf(
+      "LARGE_COPY,entries=%u,slots=%u,free=%u,largest=%u\n",
+      unsigned(owner->size()), unsigned(owner->capacity()),
+      unsigned(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)),
+      unsigned(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL |
+                                                MALLOC_CAP_8BIT)));
   try {
     Map copy(*owner);
     consume(copy);
@@ -344,23 +421,34 @@ void diagnose_large_copy() {
   }
 }
 
-void benchmark() {
+void benchmark(bool small_string = false) {
   ++run_number;
-  Serial.printf("BEGIN,%u,chip=%s,revision=%u,cpu_mhz=%u,core=%u,heap=%u,psram=%u,compiler=%s,absl=%d.%d,group_width=%u\n",
-                run_number, ESP.getChipModel(), ESP.getChipRevision(),
-                getCpuFrequencyMhz(), xPortGetCoreID(), ESP.getFreeHeap(),
-                ESP.getPsramSize(), __VERSION__, ABSL_LTS_RELEASE_VERSION,
-                ABSL_LTS_RELEASE_PATCH_LEVEL,
-                unsigned(absl::container_internal::Group::kWidth));
-  Serial.println("HEADER,run,map,hash,key,n,workload,min_ns,median_ns,max_ns,batches,heap_bytes,object_bytes");
+  Serial.printf(
+      "BEGIN,%u,chip=%s,revision=%u,cpu_mhz=%u,core=%u,heap=%u,psram=%u,"
+      "compiler=%s,absl=%d.%d,group_width=%u,suite=%s\n",
+      run_number, ESP.getChipModel(), ESP.getChipRevision(),
+      getCpuFrequencyMhz(), xPortGetCoreID(), ESP.getFreeHeap(),
+      ESP.getPsramSize(), __VERSION__, ABSL_LTS_RELEASE_VERSION,
+      ABSL_LTS_RELEASE_PATCH_LEVEL,
+      unsigned(absl::container_internal::Group::kWidth),
+      small_string ? "small_string" : "general");
+  Serial.println(
+      "HEADER,run,map,hash,key,n,workload,min_ns,median_ns,max_ns,batches,heap_"
+      "bytes,object_bytes");
   const int64_t start = esp_timer_get_time();
-  run_type<uint32_t>("u32_random");
-  run_type<uint32_t>("u32_sequential", 0, true);
-  run_type<uint64_t>("u64_random");
-  run_type<std::string>("string12", 12);
-  run_type<std::string>("string48", 48);
+  if (small_string) {
+    run_type<roo_collections::SmallString<13>>("small_string12", 12);
+    run_type<roo_collections::SmallString<49>>("small_string48", 48);
+  } else {
+    run_type<uint32_t>("u32_random");
+    run_type<uint32_t>("u32_sequential", 0, true);
+    run_type<uint64_t>("u64_random");
+    run_type<std::string>("string12", 12);
+    run_type<std::string>("string48", 48);
+  }
   Serial.printf("END,%u,elapsed_ms=%lld,sink=%u,heap=%u\n", run_number,
-                (esp_timer_get_time() - start) / 1000, unsigned(sink), ESP.getFreeHeap());
+                (esp_timer_get_time() - start) / 1000, unsigned(sink),
+                ESP.getFreeHeap());
   Serial.flush();
 }
 }  // namespace
@@ -369,18 +457,24 @@ void setup() {
   setCpuFrequencyMhz(240);
   Serial.begin(115200);
   delay(1000);
-  heap_caps_register_failed_alloc_callback([](size_t requested, uint32_t caps, const char* fn) {
+  heap_caps_register_failed_alloc_callback([](size_t requested, uint32_t caps,
+                                              const char* fn) {
     esp_rom_printf("ALLOC_FAILED,bytes=%u,caps=%u,free=%u,largest=%u,fn=%s\n",
                    unsigned(requested), unsigned(caps),
-                   unsigned(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)),
-                   unsigned(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)), fn);
+                   unsigned(heap_caps_get_free_size(MALLOC_CAP_INTERNAL |
+                                                    MALLOC_CAP_8BIT)),
+                   unsigned(heap_caps_get_largest_free_block(
+                       MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)),
+                   fn);
   });
-  Serial.println("READY,hashmap benchmark; send r to run");
+  Serial.println(
+      "READY,hashmap benchmark; send r for general, s for SmallString");
 }
 void loop() {
   if (Serial.available()) {
     char command = Serial.read();
     if (command == 'r') benchmark();
+    if (command == 's') benchmark(true);
     if (command == 'd') diagnose_large_copy();
   }
   delay(10);

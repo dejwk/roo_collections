@@ -67,7 +67,8 @@ def download(url, target):
 
 def source_fingerprint(context):
     """Identify measured library/harness bytes and the entire Abseil source tree."""
-    sources = {HARNESS: PROJECT / "src/main.cpp"}
+    sources = {"benchmarks/hashmap/" + path.relative_to(PROJECT).as_posix(): path
+               for path in sorted((PROJECT / "src").rglob("*")) if path.is_file()}
     for name, value in context["library_source_roots"].items():
         root = Path(value)
         for path in sorted((root / "src").rglob("*")):

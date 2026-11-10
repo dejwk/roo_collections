@@ -51,7 +51,7 @@ def pack(results, logs, output, run_id, url=None):
         manifest = dict(schema_version=1, id=run_id, raw_logs=["raw/" + p.name for p in logs],
                         files={name: digest(frozen / name) for name in files},
                         tooling_sha256={name: digest(PROJECT / "scripts" / name)
-                                        for name in ("analyze.py", "compare.py", "plot.py")})
+                                        for name in ("analyze.py", "compare.py", "plot.py", "common.py", "suites.py")})
         data = (json.dumps(manifest, indent=2) + "\n").encode()
         with output.open("xb") as dest, tarfile.open(fileobj=dest, mode="w:gz") as archive:
             info = tarfile.TarInfo("bundle_manifest.json")

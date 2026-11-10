@@ -6,6 +6,8 @@ import math
 from pathlib import Path
 import statistics
 
+from suites import SUITES, string_key, suite_for_keys
+
 GROUP = ("map", "hash", "key", "n", "workload")
 KEYS = ("u32_random", "u32_sequential", "u64_random", "string12", "string48")
 WORKS = ("find_hit", "find_miss", "iteration", "copy_ctor", "erase_insert",
@@ -29,6 +31,10 @@ def main():
     args = parser.parse_args()
     before, old_build = load(args.baseline)
     after, new_build = load(args.updated)
+    suite = suite_for_keys({case[2] for case in before})
+    keys = SUITES[suite]
+    strings = tuple(key for key in keys if string_key(key))
+    sizes = tuple(n for n in SIZES if all(("roo", "default", key, str(n), "find_hit") in before for key in keys))
     if before.keys() != after.keys():
         raise ValueError("The summaries cover different cases")
     for field in ("flags", "compiler", "arduino", "platform", "cpu_mhz", "psram", "abseil"):
@@ -68,7 +74,7 @@ def main():
     def delta(name, hashing, keys, work):
         ratios = [case(name, hashing, key, n, work)["updated_ns"] /
                   case(name, hashing, key, n, work)["baseline_ns"]
-                  for key in keys for n in SIZES]
+                  for key in keys for n in sizes]
         return 100 * (math.exp(statistics.mean(math.log(r) for r in ratios)) - 1)
 
     def percent(change):
@@ -98,25 +104,7 @@ def main():
             "Transport exclusions and per-suite coverage are documented in REPORT.md "
             "and excluded_records.json. Each case's actual observation count is "
             "retained in summary.csv.", "",
-            "For Roo's default hash across sizes 16–512, random uint32_t hit/miss "
-            f"time changes are {percent(delta('roo', 'default', ('u32_random',), 'find_hit'))} / "
-            f"{percent(delta('roo', 'default', ('u32_random',), 'find_miss'))}; "
-            "sequential uint32_t changes are "
-            f"{percent(delta('roo', 'default', ('u32_sequential',), 'find_hit'))} / "
-            f"{percent(delta('roo', 'default', ('u32_sequential',), 'find_miss'))}; "
-            "random uint64_t changes are "
-            f"{percent(delta('roo', 'default', ('u64_random',), 'find_hit'))} / "
-            f"{percent(delta('roo', 'default', ('u64_random',), 'find_miss'))}. "
-            "These are geometric means across the listed sizes, rather than "
-            "a mix of hits and misses from an application.", "",
-            "For Roo's default hash across sizes 16–512, 12-byte string hit/miss "
-            f"time changes are {percent(delta('roo', 'default', ('string12',), 'find_hit'))} / "
-            f"{percent(delta('roo', 'default', ('string12',), 'find_miss'))}; "
-            "48-byte string changes are "
-            f"{percent(delta('roo', 'default', ('string48',), 'find_hit'))} / "
-            f"{percent(delta('roo', 'default', ('string48',), 'find_miss'))}. "
-            "Use the shared-hash rows and unchanged-map controls to assess how "
-            "much of the difference is specific to the default string hasher.", "",
+            f"Benchmark suite: `{suite}`. The tables below separate key families and hash policies.", "",
             "## Selected Roo cases", "",
             "| Key | Hash | N | Operation | Before us | After us | Change | Speedup |",
             "|---|---|---:|---|---:|---:|---:|---:|"]
@@ -124,19 +112,20 @@ def main():
         text[4:4] = ["One measurement uses a single suite, with seven timed samples "
                      "per case. Small differences need caution because its "
                      "between-suite variation is not measured.", ""]
-    selected = [(key, "default", 128, work) for key in KEYS
+    selected = [(key, "default", 128, work) for key in keys
                 for work in ("find_hit", "find_miss")]
-    selected = [(key, "default", n, "erase_insert") for key in KEYS for n in (16, 32)] + selected
-    selected = [(key, "default", n, "cache_cycle") for key in ("string12", "string48")
+    selected = [(key, "default", n, "erase_insert") for key in keys for n in (16, 32)] + selected
+    selected = [(key, "default", n, "cache_cycle") for key in strings
                 for n in (16, 32)] + selected
-    selected += [(key, hashing, 100, work) for key in ("string12", "string48")
+    selected += [(key, hashing, 100, work) for key in strings
                  for hashing in ("default", "absl_hash")
                  for work in ("erase_insert", "build_grow")]
-    selected += [("u32_sequential", hashing, 512, work)
-                 for hashing in ("default", "absl_hash")
-                 for work in ("find_hit", "find_miss")]
+    if "u32_sequential" in keys:
+        selected += [("u32_sequential", hashing, 512, work)
+                     for hashing in ("default", "absl_hash")
+                     for work in ("find_hit", "find_miss")]
     selected += [(key, hashing, 100, "cache_cycle")
-                 for key in ("string12", "string48") for hashing in ("default", "absl_hash")]
+                 for key in strings for hashing in ("default", "absl_hash")]
     for key, hashing, n, work in selected:
         r = case("roo", hashing, key, n, work)
         text.append(f"| {key} | {hashing} | {n} | {work} | "
@@ -145,25 +134,25 @@ def main():
     text += ["", "A cache_cycle is one whole cycle of 90 hit lookups, 10 miss "
              "lookups, one eviction and one insertion. Other per-operation units "
              "are defined in ../README.md."]
-    text += ["", "## Roo changes across 16–512 entries", "",
+    text += ["", "## Roo changes across common fixture sizes (16–512 where available)", "",
              "Geometric mean of updated/baseline time ratios, equal weight for every "
              "listed size. Negative is faster. Each row uses one key dataset and hash.", "",
              "| Key | Hash | Hit | Miss | Iterate | Copy | Erase/insert | Build | Presized build |",
              "|---|---|---:|---:|---:|---:|---:|---:|---:|"]
-    for key in KEYS:
+    for key in keys:
         for hashing in ("default", "absl_hash"):
             values = [delta("roo", hashing, (key,), work) for work in WORKS]
             text.append(f"| {key} | {hashing} | " +
                         " | ".join(percent(v) for v in values) + " |")
     text += ["", "## Unchanged-map controls", "",
-             "The same geometric mean over all five key datasets and sizes 16–512. "
+             "The same geometric mean over all key datasets in this suite and common fixture sizes in the 16–512 range. "
              "These containers' source did not change, but allocations, hash seeds "
              "and generated-code layout can change between binaries.", "",
              "| Map | Hash | Hit | Miss | Iterate | Copy | Erase/insert | Build | Presized build |",
              "|---|---|---:|---:|---:|---:|---:|---:|---:|"]
     for name in ("absl_flat", "std_unordered", "absl_node", "std_map"):
         for hashing in (("ordered",) if name == "std_map" else ("default", "absl_hash")):
-            values = [delta(name, hashing, KEYS, work) for work in WORKS]
+            values = [delta(name, hashing, keys, work) for work in WORKS]
             text.append(f"| {name} | {hashing} | " +
                         " | ".join(percent(v) for v in values) + " |")
     changed_heaps = [r for r in comparisons.values() if r["map"] == "roo" and
@@ -177,8 +166,9 @@ def main():
              "retained heap including the map object and allocator overhead, not peak memory.", "",
              "| Key | N | Grown before B | Grown after B | Presized before B | Presized after B | Presized saving |",
              "|---|---:|---:|---:|---:|---:|---:|"]
-    for key in KEYS:
-        for n in (100, 128, 512):
+    for key in keys:
+        largest = max(int(case[3]) for case in before if case[2] == key)
+        for n in (100, 128, min(512, largest)):
             grown = case("roo", "default", key, n, "find_hit")
             presized = case("roo", "default", key, n, "build_presized")
             saving = 100 * (1 - presized["updated_heap_bytes"] / presized["baseline_heap_bytes"])

@@ -21,13 +21,14 @@ import fetch_dependencies
 import metadata as build_metadata
 
 
-def fixture(directory):
+def fixture(directory, suite="general"):
     """Generate all cases in protocol order without checking in measurement data."""
     directory.mkdir(parents=True, exist_ok=True)
     log = directory / "esp32.log"
     with log.open("w") as output:
-        output.write("BEGIN,1,chip=synthetic,cpu_mhz=240,psram=0,heap=123456\n")
-        for name, hashing, key, n, work in sorted(analyze.expected_cases()):
+        tag = "" if suite == "general" else f",suite={suite}"
+        output.write(f"BEGIN,1,chip=synthetic,cpu_mhz=240,psram=0,heap=123456{tag}\n")
+        for name, hashing, key, n, work in sorted(analyze.expected_cases(suite)):
             output.write(f"ROW,1,{name},{hashing},{key},{n},{work},1.0,2.0,3.0,1,128,28\n")
         output.write("END,1,heap=123456\n")
     metadata = dict(roo_collections_commit="fixture", roo_backport_commit="fixture",
@@ -65,6 +66,34 @@ class ToolsTest(unittest.TestCase):
         self.assertEqual(coverage["excluded_records"], [])
         self.assertNotIn("251 slots", (self.results / "REPORT.md").read_text())
 
+    def test_small_string_suite_is_complete_and_comparable(self):
+        before = self.root / "small-before"
+        after = self.root / "small-after"
+        for directory in (before, after):
+            log = fixture(directory, "small_string")
+            run_script("analyze.py", log, "--output-dir", directory)
+            with (directory / "summary.csv").open() as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual(len(rows), 2142)
+            self.assertEqual({row["key"] for row in rows}, {"small_string12", "small_string48"})
+            self.assertTrue(any(row["workload"] == "cache_cycle" for row in rows))
+            import plot
+            plotted = plot.Results(directory)
+            self.assertEqual(plotted.suite, "small_string")
+            self.assertEqual(len(plotted.data), 2142)
+        run_script("compare.py", "--baseline", before, "--updated", after)
+        with (after / "comparison.csv").open() as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertTrue(all(float(row["change_percent"]) == 0 for row in rows))
+
+    def test_suite_tag_rejects_mixed_or_unknown_workloads(self):
+        small = fixture(self.root / "small", "small_string")
+        mixed = run_script("analyze.py", self.log, small, "--output-dir", self.results, check=False)
+        self.assertNotEqual(mixed.returncode, 0)
+        small.write_text(small.read_text().replace("suite=small_string", "suite=unrecognized"))
+        unknown = run_script("analyze.py", small, "--output-dir", self.results, check=False)
+        self.assertNotEqual(unknown.returncode, 0)
+
     def test_truncated_capture_is_rejected(self):
         self.log.write_text(self.log.read_text().rsplit("END,", 1)[0])
         result = run_script("analyze.py", self.log, "--output-dir", self.results, check=False)
@@ -83,6 +112,9 @@ class ToolsTest(unittest.TestCase):
         self.assertEqual(entry["sha256"], common.digest(output))
         with tarfile.open(output) as archive:
             self.assertEqual(set(archive.getnames()), {"bundle_manifest.json", "build_metadata.json", "raw/esp32.log"})
+            manifest = json.load(archive.extractfile("bundle_manifest.json"))
+            for name in ("common.py", "suites.py"):
+                self.assertEqual(manifest["tooling_sha256"][name], common.digest(SCRIPTS / name))
         restored = self.root / "restored"
         bundle.unpack(output, restored, entry["sha256"])
         self.assertEqual((restored / "raw/esp32.log").read_bytes(), self.log.read_bytes())

@@ -9,3 +9,14 @@
 #else
 #define ROO_COLLECTIONS_CONSTEXPR14 inline
 #endif
+
+// Feature detection can be overridden for toolchains without this extension.
+#ifndef ROO_COLLECTIONS_HAS_BUILTIN_CTZ
+#if defined(__has_builtin)
+#define ROO_COLLECTIONS_HAS_BUILTIN_CTZ __has_builtin(__builtin_ctz)
+#elif defined(__GNUC__)
+#define ROO_COLLECTIONS_HAS_BUILTIN_CTZ 1
+#else
+#define ROO_COLLECTIONS_HAS_BUILTIN_CTZ 0
+#endif
+#endif

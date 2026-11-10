@@ -190,7 +190,19 @@ class ReadOnlyFlatSmallHashtable
     if (pos < 8) {
       uint8_t mask =
           static_cast<uint8_t>(dummy_empty_state_) & (uint32_t{0xFF} << pos);
-      if (mask != 0) return __builtin_ctz(static_cast<unsigned>(mask));
+      if (mask != 0) {
+#if ROO_COLLECTIONS_HAS_BUILTIN_CTZ
+        return __builtin_ctz(static_cast<unsigned>(mask));
+#else
+        // At most seven shifts; also valid during constant evaluation.
+        uint16_t first = 0;
+        while ((mask & 1u) == 0) {
+          mask >>= 1;
+          ++first;
+        }
+        return first;
+#endif
+      }
       pos = 8;
     }
     uint16_t cap = ht_len();

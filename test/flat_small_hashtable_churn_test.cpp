@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include <iterator>
 #include <memory>
 #include <unordered_map>
 
@@ -182,5 +183,63 @@ TEST(FlatSmallHashtableChurn, IterationAcrossInPlaceMutations) {
   EXPECT_EQ(typename decltype(map)::const_iterator(),
             typename decltype(map)::const_iterator());
 }
+struct FingerprintHash {
+  using is_transparent = void;
+  uint32_t value;
+
+  template <typename K>
+  size_t operator()(const K&) const {
+    return value;
+  }
+};
+
+struct TransparentEqual {
+  using is_transparent = void;
+
+  template <typename A, typename B>
+  bool operator()(const A& a, const B& b) const {
+    return a == b;
+  }
+};
+
+// Verifies every low hash byte, including 0 and 1, remains distinct from empty
+// and deleted states, with collisions and typed/heterogeneous lookup and erase.
+TEST(FlatSmallHashtableChurn, OccupiedFingerprintByte) {
+  using Map = FlatSmallHashMap<int, int, FingerprintHash, TransparentEqual>;
+  for (uint32_t hash = 0; hash < 256; ++hash) {
+    SCOPED_TRACE(hash);
+    Map map(8, FingerprintHash{hash});
+    const Map::read_only_type& view = map;
+    EXPECT_EQ(map.find(0), map.end());
+    EXPECT_EQ(view.find(0L), view.end());
+    for (int key = 0; key < 8; ++key)
+      ASSERT_TRUE(map.insert({key, key}).second);
+    ASSERT_TRUE(map.erase(0));
+    ASSERT_TRUE(map.erase(1L));
+    EXPECT_FALSE(map.erase(0L));
+    EXPECT_FALSE(map.erase(1));
+    EXPECT_EQ(map.find(0), map.end());
+    EXPECT_EQ(view.find(1L), view.end());
+    EXPECT_FALSE(map.insert({7, 99}).second);
+    ASSERT_TRUE(map.insert({8, 8}).second);
+    ASSERT_TRUE(map.insert({9, 9}).second);
+    for (int key = 2; key < 10; ++key) {
+      ASSERT_NE(map.find(key), map.end());
+      ASSERT_NE(map.find(static_cast<long>(key)), map.end());
+      ASSERT_NE(view.find(key), view.end());
+      ASSERT_NE(view.find(static_cast<long>(key)), view.end());
+      EXPECT_EQ(map.at(key), key);
+      EXPECT_EQ(view.at(static_cast<long>(key)), key);
+    }
+    EXPECT_EQ(std::distance(view.begin(), view.end()), 8);
+    // A fresh table exercises heterogeneous erase at the primary bucket too.
+    Map singleton(1, FingerprintHash{hash});
+    singleton.insert({1, 1});
+    ASSERT_TRUE(singleton.erase(1L));
+    EXPECT_EQ(singleton.begin(), singleton.end());
+    EXPECT_EQ(singleton.find(1), singleton.end());
+  }
+}
+
 }  // namespace
 }  // namespace roo_collections

@@ -47,7 +47,9 @@ ROO_COLLECTIONS_CONSTEXPR14 uint16_t FindFlatSmallBucket(
   for (uint32_t visited = 0; visited < capacity; ++visited) {
     uint16_t pos = probe.position();
     if (states[pos] == 0) return capacity;
-    if ((states[pos] & 0x80) != 0 && (states[pos] & 0x7F) == (hash & 0x7F) &&
+    // The high bit distinguishes occupied fingerprints from empty/tombstone.
+    if (static_cast<uint8_t>(states[pos]) ==
+            static_cast<uint8_t>(hash | 0x80) &&
         key_cmp_fn(key_fn(entries[pos]), key)) {
       return pos;
     }

@@ -263,7 +263,7 @@ class FlatSmallHashtable
     size_t hash = hash_fn_(key);
     const uint16_t pos = capacity_info_->reduceHash(hash);
     if (states_[pos] == EMPTY) return false;
-    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
+    if (states_[pos] == static_cast<State>((hash & 0x7F) | 0x80) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       buffer_[pos] = Entry();
       if (used_ == 1 && erased_ == 0) {
@@ -287,7 +287,7 @@ class FlatSmallHashtable
     while (true) {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) return false;
-      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
+      if (states_[p] == static_cast<State>((hash & 0x7F) | 0x80) &&
           key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         states_[p] = DELETED;
         if (p < 8) dummy_empty_state_ &= ~(uint16_t{1} << p);
@@ -309,7 +309,7 @@ class FlatSmallHashtable
     size_t hash = hash_fn_(key);
     const uint16_t pos = capacity_info_->reduceHash(hash);
     if (states_[pos] == EMPTY) return false;
-    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
+    if (states_[pos] == static_cast<State>((hash & 0x7F) | 0x80) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       states_[pos] = DELETED;
       if (pos < 8) dummy_empty_state_ &= ~(uint16_t{1} << pos);
@@ -324,7 +324,7 @@ class FlatSmallHashtable
     while (true) {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) return false;
-      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
+      if (states_[p] == static_cast<State>((hash & 0x7F) | 0x80) &&
           key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         states_[p] = DELETED;
         if (p < 8) dummy_empty_state_ &= ~(uint16_t{1} << p);
@@ -385,7 +385,7 @@ class FlatSmallHashtable
     if (states_[pos] == EMPTY && used_ < resize_threshold_) {
       return insertAt(pos, val, hash);
     }
-    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
+    if (states_[pos] == static_cast<State>((hash & 0x7F) | 0x80) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       return std::make_pair(Iterator(this, pos), false);
     }
@@ -420,7 +420,7 @@ class FlatSmallHashtable
     size_t hash = hash_fn_(key);
     const uint16_t pos = capacity_info_->reduceHash(hash);
     if (states_[pos] == EMPTY) return end();
-    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
+    if (states_[pos] == static_cast<State>((hash & 0x7F) | 0x80) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       return Iterator(this, pos);
     }
@@ -431,7 +431,7 @@ class FlatSmallHashtable
     while (true) {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) return end();
-      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
+      if (states_[p] == static_cast<State>((hash & 0x7F) | 0x80) &&
           key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         return Iterator(this, p);
       }
@@ -447,7 +447,7 @@ class FlatSmallHashtable
     size_t hash = hash_fn_(key);
     const uint16_t pos = capacity_info_->reduceHash(hash);
     if (states_[pos] == EMPTY) return end();
-    if (states_[pos] < 0 && (states_[pos] & 0x7F) == (hash & 0x7F) &&
+    if (states_[pos] == static_cast<State>((hash & 0x7F) | 0x80) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       return Iterator(this, pos);
     }
@@ -458,7 +458,7 @@ class FlatSmallHashtable
     while (true) {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) return end();
-      if (states_[p] < 0 && (states_[p] & 0x7F) == (hash & 0x7F) &&
+      if (states_[p] == static_cast<State>((hash & 0x7F) | 0x80) &&
           key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         return Iterator(this, p);
       }

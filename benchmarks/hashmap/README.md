@@ -172,7 +172,21 @@ python scripts/plot.py --results-dir results/my-run
 # Analyze and plot the separate SmallString run:
 python scripts/analyze.py results/small-string/esp32.log --output-dir results/small-string
 python scripts/plot.py --results-dir results/small-string
+# Also show Roo (SmallString) beside std::string containers in the general charts:
+python scripts/plot.py --results-dir results/my-run \
+  --small-string-results results/small-string
 ```
+
+`--small-string-results` adds a separate Roo (SmallString) series to every
+string panel, including the overview, lookup, iteration/mutation, construction,
+cache and memory charts. It uses the matching payload length and hash policy,
+retains the captured size range (48-character SmallString stops at 400), and
+records both input sets in the chart manifest. Integer panels are unchanged.
+The tool requires matching library/dependency source hashes and recorded build
+settings. Captures can come from different boards or harnesses; the charts label
+them as separate runs, so timing differences also include board and binary-layout
+effects. The standalone SmallString PDF continues to compare all five containers
+using SmallString keys.
 
 Analysis requires complete coverage, valid numeric fields, ordered samples and
 matching start/end heap. It can recover missing record separators, but never

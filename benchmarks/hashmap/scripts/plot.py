@@ -8,6 +8,7 @@ import json
 import math
 import os
 from pathlib import Path
+import shlex
 import sys
 
 from suites import GENERAL_KEYS, SMALL_STRING_KEYS, string_key, suite_for_keys
@@ -16,14 +17,16 @@ PROJECT = Path(__file__).resolve().parents[1]
 os.environ.setdefault("MPLCONFIGDIR", str(PROJECT / ".pio/matplotlib-cache"))
 
 MAPS = ("roo", "absl_flat", "std_unordered", "absl_node", "std_map")
+SMALL_STRING_SERIES = "roo_small_string"
+PLOT_MAPS = MAPS + (SMALL_STRING_SERIES,)
 KEYS = ("u32_random", "u32_sequential", "u64_random", "string12", "string48")
 KEY_LABELS = ("uint32 · random", "uint32 · sequential", "uint64 · random",
               "String · 12 bytes", "String · 48 bytes")
 SHORT_KEYS = ("uint32\nrandom", "uint32\nsequential", "uint64\nrandom",
               "String\n12 bytes", "String\n48 bytes")
-LABELS = ("Roo", "Abseil flat", "std::unordered_map", "Abseil node", "std::map")
-COLORS = ("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#606770")
-MARKERS = ("o", "s", "^", "D", "v")
+LABELS = ("Roo", "Abseil flat", "std::unordered_map", "Abseil node", "std::map", "Roo (SmallString)")
+COLORS = ("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#606770", "#D55E00")
+MARKERS = ("o", "s", "^", "D", "v", "P")
 WORKS = ("find_hit", "find_miss", "iteration", "copy_ctor", "erase_insert",
          "build_grow", "build_presized", "cache_cycle")
 GROUP = ("map", "hash", "key", "n", "workload")
@@ -36,8 +39,9 @@ def digest(path):
 class Results:
     """Reject inconsistent inputs instead of silently omitting chart series."""
 
-    def __init__(self, directory):
+    def __init__(self, directory, small_string_directory=None):
         self.directory = directory
+        self.small_string = None
         self.build = json.loads((directory / "build_metadata.json").read_text())
         with (directory / "summary.csv").open(newline="") as stream:
             rows = list(csv.DictReader(stream))
@@ -91,12 +95,41 @@ class Results:
                              f"unexpected={self.data.keys() - expected}")
         counts = [row["runs"] for row in self.data.values()]
         self.minimum_runs, self.maximum_runs = min(counts), max(counts)
+        if small_string_directory is not None:
+            if self.suite != "general":
+                raise ValueError("SmallString overlay requires a general base suite")
+            extra = Results(small_string_directory)
+            if extra.suite != "small_string":
+                raise ValueError("SmallString overlay requires a small_string source suite")
+            for field in ("roo_collections_commit", "compiler", "arduino", "platform",
+                          "cpu_mhz", "psram", "flags", "abseil", "fill_ratio"):
+                if self.build.get(field) != extra.build.get(field):
+                    raise ValueError(f"SmallString overlay configuration changed: {field}")
+            # Harnesses intentionally differ; require the measured containers and
+            # recorded dependency sources to match across the two key types.
+            def library_sources(build):
+                return {name: value for name, value in build["source_sha256"].items()
+                        if name.startswith(("lib/", "absl/"))}
+            if library_sources(self.build) != library_sources(extra.build):
+                raise ValueError("SmallString overlay library/dependency source hashes differ")
+            self.small_string = extra
+
+    def maps_for(self, key, n=None):
+        if self.small_string is not None and key.startswith("string"):
+            sizes = self.small_string.sizes["small_" + key]
+            if n is None or n in sizes:
+                return PLOT_MAPS
+        return MAPS
 
     def get(self, name, policy, key, n, work, field="median_ns"):
+        if name == SMALL_STRING_SERIES:
+            return self.small_string.get("roo", policy, "small_" + key, n, work, field)
         hashing = "ordered" if name == "std_map" else policy
         return self.data[(name, hashing, key, n, work)][field]
 
     def series(self, name, policy, key, work, field="median_ns", factor=0.001):
+        if name == SMALL_STRING_SERIES:
+            return self.small_string.series("roo", policy, "small_" + key, work, field, factor)
         sizes = sorted(n for n in self.sizes[key] if work != "cache_cycle" or n >= 10)
         return sizes, [self.get(name, policy, key, n, work, field) * factor for n in sizes]
 
@@ -111,19 +144,25 @@ class Results:
         suite = "suite" if self.maximum_runs == 1 else "suites"
         fill = self.fill_label()
         prefix = fill + " · " if fill else ""
-        return (f"{prefix}ESP32 · {self.build['cpu_mhz']} MHz · {' '.join(self.build['flags'])} · warm access · "
+        text = (f"{prefix}ESP32 · {self.build['cpu_mhz']} MHz · {' '.join(self.build['flags'])} · warm access · "
                 f"heap checks: {self.build.get('heap_poisoning', 'unrecorded')} · "
                 f"{counts} {suite}/case, 7 samples/row\n"
                 "Medians shown; no confidence intervals. Default capacity policies; "
                 "fill ratios are not normalized. Lower is better.")
+        if self.small_string is not None:
+            limit = max(self.small_string.sizes["small_string48"])
+            text += ("\nRoo (SmallString): separate capture/board; other string series use std::string. "
+                     f"48-character SmallString ends at {limit} entries.")
+        return text
 
 
 def line(ax, results, name, policy, key, work, field="median_ns", factor=0.001):
-    i = MAPS.index(name)
+    i = PLOT_MAPS.index(name)
     x, y = results.series(name, policy, key, work, field, factor)
     ax.plot(x, y, color=COLORS[i], marker=MARKERS[i], markersize=3.3,
-            linewidth=2.1 if name == "roo" else 1.35, label=LABELS[i],
-            zorder=4 if name == "roo" else 2)
+            linewidth=2.1 if name in ("roo", SMALL_STRING_SERIES) else 1.35,
+            linestyle="--" if name == SMALL_STRING_SERIES else "-", label=LABELS[i],
+            zorder=4 if name in ("roo", SMALL_STRING_SERIES) else 2)
 
 
 def size_axis(ax, sizes, cache=False):
@@ -141,9 +180,13 @@ def decorate(fig, axes, results, title, subtitle, footer=None):
     short = fig.get_figheight() < 7
     fig.suptitle(title, fontsize=17, fontweight="bold", y=0.982)
     fig.text(0.5, 0.915 if short else 0.936, subtitle, ha="center", fontsize=10, color="#3b4654")
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.872 if short else 0.913),
-               ncol=5, frameon=False, fontsize=10)
+    legend = {}
+    for ax in axes:
+        handles, labels = ax.get_legend_handles_labels()
+        legend.update(zip(labels, handles))
+    fig.legend(list(legend.values()), list(legend), loc="upper center",
+               bbox_to_anchor=(0.5, 0.872 if short else 0.913),
+               ncol=len(legend), frameon=False, fontsize=10)
     fig.text(0.5, 0.018, footer or results.footer(), ha="center", va="bottom",
              fontsize=8.5, color="#4b5563", linespacing=1.5)
     for ax in axes:
@@ -163,11 +206,15 @@ def overview(plt, results, n):
               ("iteration", "median_ns", 1.0, "Iteration", "ns / visited entry"),
               ("find_hit", "heap_bytes", 1 / 1024, "Retained heap after growth", "KiB"))
     for ax, (work, field, factor, title, unit) in zip(grid.flat, panels):
-        width = 0.145
-        for i, name in enumerate(MAPS):
-            values = [results.get(name, "default", key, n, work, field) * factor for key in results.keys]
-            positions = [j + (i - 2) * width for j in range(len(results.keys))]
-            ax.bar(positions, values, width, color=COLORS[i], label=LABELS[i])
+        width = 0.72 / (len(PLOT_MAPS) if results.small_string is not None else len(MAPS))
+        for j, key in enumerate(results.keys):
+            names = results.maps_for(key, n)
+            for position, name in enumerate(names):
+                i = PLOT_MAPS.index(name)
+                value = results.get(name, "default", key, n, work, field) * factor
+                x = j + (position - (len(names) - 1) / 2) * width
+                ax.bar(x, value, width, color=COLORS[i], label=LABELS[i],
+                       hatch="//" if name == SMALL_STRING_SERIES else None)
         ax.set_xticks(range(len(results.keys)), results.short_keys, fontsize=9)
         ax.set_ylim(bottom=0)
         ax.set_title(title, fontsize=11, pad=10)
@@ -187,7 +234,7 @@ def timing_grid(plt, results, policy, panels, title, log_y=False):
     for col, (key, key_label) in enumerate(zip(results.keys, results.key_labels)):
         for row, (work, label, factor, unit) in enumerate(panels):
             ax = grid[row, col]
-            for name in MAPS:
+            for name in results.maps_for(key):
                 line(ax, results, name, policy, key, work, factor=factor)
             size_axis(ax, results.sizes[key])
             if log_y:
@@ -226,7 +273,7 @@ def plain_ticks():
 def cache_chart(plt, results, policy):
     fig, axes = plt.subplots(1, 2, figsize=(13.8, 6.7))
     for ax, key, label in zip(axes, results.keys[-2:], results.key_labels[-2:]):
-        for name in MAPS:
+        for name in results.maps_for(key):
             line(ax, results, name, policy, key, "cache_cycle")
         sizes = [n for n in results.sizes[key] if n >= 10]
         size_axis(ax, sizes, cache=True)
@@ -251,7 +298,7 @@ def memory_chart(plt, results, presizing=False):
         work = "build_presized" if presizing and row == 1 else "find_hit"
         for col, (key, label) in enumerate(zip(results.keys, results.key_labels)):
             ax = grid[row, col]
-            for name in MAPS:
+            for name in results.maps_for(key):
                 line(ax, results, name, policy, key, work, "heap_bytes", 1 / 1024)
             size_axis(ax, results.sizes[key])
             ax.set_yscale("log")
@@ -285,6 +332,11 @@ def write_gallery(output, charts, results, manifest):
              "the recorded source hashes identify the working-tree snapshot.")
     if results.fill_label():
         intro += " " + results.fill_label() + "."
+    if results.small_string is not None:
+        intro += (f" Roo (SmallString) is an additional string-only series from a separate "
+                  f"{len(results.small_string.data):,}-case capture on "
+                  f"{results.small_string.build['board']}; other string series use std::string. "
+                  "Timing differences also include board and binary-layout effects.")
     source_report = os.path.relpath(results.directory / "REPORT.md", output)
     policy_note = (results.fill_label() + "; competitor capacity/load policies remain at defaults. "
                    if results.fill_label() else "Default capacity/load policies are retained. ")
@@ -310,8 +362,12 @@ def write_gallery(output, charts, results, manifest):
                      f'<a href="{stem}.svg" title="Open scalable SVG"><img loading="lazy" '
                      f'src="{stem}.png" alt="{html.escape(title)}"></a>'
                      f'<p><a href="{stem}.png">PNG</a> · <a href="{stem}.svg">SVG</a></p></section>')
-    readme += ["## Regenerate", "", "```sh",
-               f"python scripts/plot.py --results-dir {results.directory} --output-dir {output}", "```", "",
+    command = ["python", "scripts/plot.py", "--results-dir", str(results.directory),
+               "--output-dir", str(output), "--overview-size", str(manifest["overview_size"]),
+               "--dpi", str(manifest["dpi"])]
+    if results.small_string is not None:
+        command += ["--small-string-results", str(results.small_string.directory)]
+    readme += ["## Regenerate", "", "```sh", shlex.join(command), "```", "",
                "Requires scripts/requirements-charts.txt. Inputs and script hashes, "
                "the Matplotlib version, and plotted point counts are in manifest.json.", ""]
     (output / "README.md").write_text("\n".join(readme))
@@ -348,13 +404,15 @@ def write_gallery(output, charts, results, manifest):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--results-dir", type=Path, default=PROJECT / "results")
+    parser.add_argument("--small-string-results", type=Path,
+                        help="Add Roo (SmallString) to the general suite's string charts")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--overview-size", type=int, default=128)
     parser.add_argument("--dpi", type=int, default=160)
     args = parser.parse_args()
     if args.dpi < 72:
         parser.error("--dpi must be at least 72")
-    results = Results(args.results_dir)
+    results = Results(args.results_dir, args.small_string_results)
     output = args.output_dir or args.results_dir / "charts"
     output.mkdir(parents=True, exist_ok=True)
     try:
@@ -427,6 +485,17 @@ def main():
                 "samples_per_row": 7, "dpi": args.dpi,
                 "charts": [{"stem": stem, "title": title, "group": group, **chart_stats[stem]}
                            for stem, title, group in charts]}
+    if results.small_string is not None:
+        manifest["small_string_overlay"] = {
+            "input_base": os.path.relpath(results.small_string.directory, output),
+            "inputs": {name: digest(results.small_string.directory / name)
+                       for name in ("summary.csv", "build_metadata.json")},
+            "cases": len(results.small_string.data),
+            "minimum_suites_per_case": results.small_string.minimum_runs,
+            "maximum_suites_per_case": results.small_string.maximum_runs,
+            "board": results.small_string.build["board"],
+            "series": "Roo (SmallString)",
+        }
     write_gallery(output, charts, results, manifest)
     print(f"Wrote {len(charts)} charts (PNG + SVG), PDF and gallery to {output}")
 

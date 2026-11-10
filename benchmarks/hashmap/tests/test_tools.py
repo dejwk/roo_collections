@@ -94,6 +94,51 @@ class ToolsTest(unittest.TestCase):
         unknown = run_script("analyze.py", small, "--output-dir", self.results, check=False)
         self.assertNotEqual(unknown.returncode, 0)
 
+    def test_small_string_overlay_uses_separate_values_and_available_sizes(self):
+        """Verifies string-only overlays use real samples and never invent size 512."""
+        import plot
+        small = self.root / "small"
+        log = fixture(small, "small_string")
+        log.write_text(log.read_text().replace(",1.0,2.0,3.0,1,128,28", ",1.0,2.5,3.0,1,256,28"))
+        for directory in (self.results, small):
+            run_script("analyze.py", directory / "esp32.log", "--output-dir", directory)
+        results = plot.Results(self.results, small)
+        name = plot.SMALL_STRING_SERIES
+        self.assertNotIn(name, results.maps_for("u32_random"))
+        self.assertIn(name, results.maps_for("string12", 512))
+        self.assertIn(name, results.maps_for("string48", 400))
+        self.assertNotIn(name, results.maps_for("string48", 512))
+        for policy in ("default", "absl_hash"):
+            self.assertEqual(results.get("roo", policy, "string12", 128, "find_hit"), 2.0)
+            self.assertEqual(results.get(name, policy, "string12", 128, "find_hit"), 2.5)
+            self.assertEqual(results.get(name, policy, "string12", 128, "find_hit", "heap_bytes"), 256)
+            sizes, values = results.series(name, policy, "string48", "iteration", factor=1)
+            self.assertEqual(max(sizes), 400)
+            self.assertTrue(all(value == 2.5 for value in values))
+        self.assertIn("separate capture/board", results.footer())
+
+    def test_small_string_overlay_rejects_wrong_suites_and_changed_implementation(self):
+        """Verifies overlays cannot silently compare different source implementations."""
+        import plot
+        small = self.root / "small"
+        fixture(small, "small_string")
+        for directory in (self.results, small):
+            run_script("analyze.py", directory / "esp32.log", "--output-dir", directory)
+        with self.assertRaisesRegex(ValueError, "general base"):
+            plot.Results(small, self.results)
+        with self.assertRaisesRegex(ValueError, "small_string source"):
+            plot.Results(self.results, self.results)
+        path = small / "build_metadata.json"
+        metadata = json.loads(path.read_text())
+        metadata["source_sha256"]["lib/roo_collections/src/hash.h"] = "d" * 64
+        path.write_text(json.dumps(metadata))
+        with self.assertRaisesRegex(ValueError, "source hashes differ"):
+            plot.Results(self.results, small)
+        metadata["compiler"] = "different compiler"
+        path.write_text(json.dumps(metadata))
+        with self.assertRaisesRegex(ValueError, "configuration changed: compiler"):
+            plot.Results(self.results, small)
+
     def test_truncated_capture_is_rejected(self):
         self.log.write_text(self.log.read_text().rsplit("END,", 1)[0])
         result = run_script("analyze.py", self.log, "--output-dir", self.results, check=False)

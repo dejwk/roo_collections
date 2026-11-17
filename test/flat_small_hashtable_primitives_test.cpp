@@ -7,9 +7,18 @@
 namespace roo_collections {
 namespace {
 
+static_assert(fastmod(0, 0) == 0, "empty sentinel with zero hash");
+static_assert(fastmod(UINT32_MAX, 0) == 0,
+              "empty sentinel with full-width hash");
 static_assert(fastmod(1, 1) == 1, "modulo three");
 static_assert(fastmod(1, 2) == 1, "modulo seven");
 static_assert(fastmod(UINT32_MAX, 1) == 0, "large modulo three");
+constexpr impl::FlatSmallHashtableCapacity kMaximumDivisor(UINT16_MAX);
+static_assert(kMaximumDivisor.reduceHash(UINT32_MAX) == 0,
+              "largest divisor with full-width hash");
+static_assert(kMaximumDivisor.reduceHash(UINT32_MAX - 1) == UINT16_MAX - 1,
+              "signed correction at the largest remainder");
+
 static_assert(initialCapacityIdx(0) == 0, "empty capacity");
 static_assert(initialCapacityIdx(1) == 1, "singleton capacity");
 static_assert(initialCapacityIdx(3) == 2, "small capacity");
@@ -74,20 +83,35 @@ TEST(FlatSmallHashtablePrimitives, ImmutablePrimeSearchMatchesSieve) {
   }
 }
 
-// Verifies computed reciprocals match modulo for every eligible 16-bit prime,
-// including random full-width hashes, boundaries and the empty sentinel.
-TEST(FlatSmallHashtablePrimitives, ExactPrimeReducersMatchModulo) {
-  for (uint32_t slots = 1; slots <= 65535; slots += 2) {
-    if (slots != 1 && (slots % 4 != 3 || !impl::IsPrime16(slots))) continue;
+// Verifies exact modulo for every nonzero 16-bit divisor, including composite
+// capacities, the empty sentinel, correction at multiples and full-width
+// hashes.
+TEST(FlatSmallHashtablePrimitives,
+     ExactReducersMatchModuloForEvery16BitDivisor) {
+  for (uint32_t slots = 1; slots <= UINT16_MAX; ++slots) {
     const impl::FlatSmallHashtableCapacity capacity(slots);
-    uint32_t boundaries[] = {0, 1, slots - 1, slots, slots + 1, UINT32_MAX};
+    uint32_t last_multiple = UINT32_MAX - UINT32_MAX % slots;
+    uint32_t boundaries[] = {0,
+                             1,
+                             slots - 1,
+                             slots,
+                             slots + 1,
+                             last_multiple - 1,
+                             last_multiple,
+                             UINT32_MAX - 1,
+                             UINT32_MAX};
     for (uint32_t hash : boundaries) {
-      ASSERT_EQ(capacity.reduceHash(hash), hash % slots) << slots;
+      ASSERT_EQ(capacity.reduceHash(hash), hash % slots)
+          << "slots=" << slots << " hash=" << hash;
+    }
+    if (last_multiple < UINT32_MAX) {
+      ASSERT_EQ(capacity.reduceHash(last_multiple + 1), 1) << "slots=" << slots;
     }
     uint32_t hash = 42;
     for (int sample = 0; sample < 32; ++sample) {
       hash = hash * 1664525u + 1013904223u;
-      ASSERT_EQ(capacity.reduceHash(hash), hash % slots) << slots;
+      ASSERT_EQ(capacity.reduceHash(hash), hash % slots)
+          << "slots=" << slots << " hash=" << hash;
     }
   }
 }

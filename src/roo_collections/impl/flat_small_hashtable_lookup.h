@@ -37,25 +37,33 @@ class FlatSmallHashtableProbe {
 
 /// Finds a matching bucket, or returns capacity. Accepts both signed and
 /// unsigned state bytes, with zero empty and bit 7 marking occupied buckets.
+/// Requires nonzero capacity, first < capacity, and at least one empty bucket.
+/// Entry and policy references preserve the caller's const qualification.
 template <typename Entry, typename State, typename Key, typename KeyFn,
           typename KeyCmpFn>
-ROO_COLLECTIONS_CONSTEXPR14 uint16_t FindFlatSmallBucket(
-    const Entry* entries, const State* states, uint16_t capacity,
-    uint16_t first, uint32_t hash, const Key& key, const KeyFn& key_fn,
-    const KeyCmpFn& key_cmp_fn) {
-  FlatSmallHashtableProbe probe(first, capacity);
-  for (uint32_t visited = 0; visited < capacity; ++visited) {
-    uint16_t pos = probe.position();
-    if (states[pos] == 0) return capacity;
-    // The high bit distinguishes occupied fingerprints from empty/tombstone.
+ROO_COLLECTIONS_CONSTEXPR14 uint32_t FindFlatSmallBucket(
+    Entry* entries, const State* states, uint16_t capacity, uint32_t first,
+    uint32_t hash, const Key& key, KeyFn& key_fn, KeyCmpFn& key_cmp_fn) {
+  // Keep intermediate indices word-sized to avoid narrowing on 32-bit targets.
+  uint32_t pos = first;
+  int32_t step = 2 - int32_t(capacity);
+  while (true) {
+    // The high bit excludes empty/tombstone states before accessing an entry.
+    // Testing the fingerprint first keeps the common hit path short.
     if (static_cast<uint8_t>(states[pos]) ==
             static_cast<uint8_t>(hash | 0x80) &&
         key_cmp_fn(key_fn(entries[pos]), key)) {
       return pos;
     }
-    if (visited + 1 < capacity) probe.advance();
+    if (states[pos] == 0) return capacity;
+
+    // Same Radke sequence as FlatSmallHashtableProbe. Owners retain an empty
+    // bucket, so a miss terminates before the sequence is exhausted.
+    assert(step < int32_t(capacity));
+    pos += step >= 0 ? step : -step;
+    if (pos >= capacity) pos -= capacity;
+    step += 2;
   }
-  return capacity;
 }
 
 }  // namespace internal

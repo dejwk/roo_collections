@@ -28,7 +28,6 @@ class FlatSmallHashtable
       ReadOnlyFlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>;
   using State = typename ReadOnly::State;
   using ReadOnly::buffer_;
-  using ReadOnly::capacity_info_;
   using ReadOnly::DELETED;
   using ReadOnly::dummy_empty_state_;
   using ReadOnly::EMPTY;
@@ -36,6 +35,8 @@ class FlatSmallHashtable
   using ReadOnly::hash_fn_;
   using ReadOnly::key_cmp_fn_;
   using ReadOnly::key_fn_;
+  using ReadOnly::reciprocal_;
+  using ReadOnly::reduceHash;
   using ReadOnly::resize_threshold_;
   using ReadOnly::slot_count_;
   using ReadOnly::states_;
@@ -91,7 +92,7 @@ class FlatSmallHashtable
     friend class FlatSmallHashtable;
 
     Iterator(FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>* ht,
-             uint16_t pos)
+             uint32_t pos)
         : ht_(ht), pos_(pos) {}
 
     FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>* ht_;
@@ -136,9 +137,11 @@ class FlatSmallHashtable
                      KeyFn key_fn = KeyFn(), KeyCmpFn key_cmp_fn = KeyCmpFn())
       : ReadOnly(hash_fn, key_fn, key_cmp_fn) {
     int capacity_idx = initialCapacityIdx(size_hint);
-    capacity_info_ = &impl::kMutableFlatSmallHashtableCapacities[capacity_idx];
-    slot_count_ = capacity_info_->slot_count;
-    resize_threshold_ = capacity_info_->mutableCapacity();
+    const impl::FlatSmallHashtableCapacity& capacity =
+        impl::kMutableFlatSmallHashtableCapacities[capacity_idx];
+    reciprocal_ = capacity.reciprocal;
+    slot_count_ = capacity.slot_count;
+    resize_threshold_ = capacity.mutableCapacity();
     buffer_ = ht_len() > 1 ? new Entry[ht_len()] : nullptr;
     states_ = ht_len() > 1 ? new State[ht_len()] : &dummy_empty_state_;
     std::fill(&states_[0], &states_[ht_len()], State(EMPTY));
@@ -149,8 +152,8 @@ class FlatSmallHashtable
       : ReadOnly(std::move(other.hash_fn_), std::move(other.key_fn_),
                  std::move(other.key_cmp_fn_)) {
     dummy_empty_state_ = other.dummy_empty_state_;
-    capacity_info_ = other.capacity_info_;
-    slot_count_ = capacity_info_->slot_count;
+    reciprocal_ = other.reciprocal_;
+    slot_count_ = other.slot_count_;
     used_ = other.used_;
     erased_ = other.erased_;
     resize_threshold_ = other.resize_threshold_;
@@ -163,8 +166,8 @@ class FlatSmallHashtable
   FlatSmallHashtable(const FlatSmallHashtable& other)
       : ReadOnly(other.hash_fn_, other.key_fn_, other.key_cmp_fn_) {
     dummy_empty_state_ = other.dummy_empty_state_;
-    capacity_info_ = other.capacity_info_;
-    slot_count_ = capacity_info_->slot_count;
+    reciprocal_ = other.reciprocal_;
+    slot_count_ = other.slot_count_;
     used_ = other.used_;
     erased_ = other.erased_;
     resize_threshold_ = other.resize_threshold_;
@@ -191,8 +194,8 @@ class FlatSmallHashtable
       key_fn_ = std::move(other.key_fn_);
       key_cmp_fn_ = std::move(other.key_cmp_fn_);
       dummy_empty_state_ = other.dummy_empty_state_;
-      capacity_info_ = other.capacity_info_;
-      slot_count_ = capacity_info_->slot_count;
+      reciprocal_ = other.reciprocal_;
+      slot_count_ = other.slot_count_;
       used_ = other.used_;
       erased_ = other.erased_;
       resize_threshold_ = other.resize_threshold_;
@@ -212,8 +215,8 @@ class FlatSmallHashtable
       key_fn_ = other.key_fn_;
       key_cmp_fn_ = other.key_cmp_fn_;
       dummy_empty_state_ = other.dummy_empty_state_;
-      capacity_info_ = other.capacity_info_;
-      slot_count_ = capacity_info_->slot_count;
+      reciprocal_ = other.reciprocal_;
+      slot_count_ = other.slot_count_;
       used_ = other.used_;
       erased_ = other.erased_;
       resize_threshold_ = other.resize_threshold_;
@@ -261,7 +264,7 @@ class FlatSmallHashtable
   /// @return `true` if an entry was removed.
   bool erase(const Key& key) {
     size_t hash = hash_fn_(key);
-    const uint16_t pos = capacity_info_->reduceHash(hash);
+    const uint16_t pos = reduceHash(hash);
     if (states_[pos] == EMPTY) return false;
     if (states_[pos] == static_cast<State>((hash & 0x7F) | 0x80) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
@@ -307,7 +310,7 @@ class FlatSmallHashtable
             typename = has_is_transparent_t<KeyCmpFn, K>>
   bool erase(const K& key) {
     size_t hash = hash_fn_(key);
-    const uint16_t pos = capacity_info_->reduceHash(hash);
+    const uint16_t pos = reduceHash(hash);
     if (states_[pos] == EMPTY) return false;
     if (states_[pos] == static_cast<State>((hash & 0x7F) | 0x80) &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
@@ -381,7 +384,7 @@ class FlatSmallHashtable
     // second owning-key copy (and allocation for std::string keys).
     const Key& key = key_fn_(val);
     uint32_t hash = hash_fn_(key);
-    uint16_t pos = capacity_info_->reduceHash(hash);
+    uint16_t pos = reduceHash(hash);
     if (states_[pos] == EMPTY && used_ < resize_threshold_) {
       return insertAt(pos, val, hash);
     }
@@ -417,55 +420,21 @@ class FlatSmallHashtable
 
  protected:
   Iterator lookup(const Key& key) {
-    size_t hash = hash_fn_(key);
-    const uint16_t pos = capacity_info_->reduceHash(hash);
-    if (states_[pos] == EMPTY) return end();
-    if (states_[pos] == static_cast<State>((hash & 0x7F) | 0x80) &&
-        key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
-      return Iterator(this, pos);
-    }
-    const uint16_t cap = ht_len();
-    uint32_t p = pos;
-    p += (cap - 2);
-    int32_t j = 2 - cap;
-    while (true) {
-      if (p >= cap) p -= cap;
-      if (states_[p] == EMPTY) return end();
-      if (states_[p] == static_cast<State>((hash & 0x7F) | 0x80) &&
-          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
-        return Iterator(this, p);
-      }
-      j += 2;
-      assert(j < cap);
-      p += (j >= 0 ? j : -j);
-    }
+    uint32_t hash = hash_fn_(key);
+    uint32_t pos = internal::FindFlatSmallBucket(buffer_, states_, ht_len(),
+                                                 reduceHash(hash), hash, key,
+                                                 key_fn_, key_cmp_fn_);
+    return Iterator(this, pos);
   }
 
   template <typename K, typename = has_is_transparent_t<HashFn, K>,
             typename = has_is_transparent_t<KeyCmpFn, K>>
   Iterator lookup(const K& key) {
-    size_t hash = hash_fn_(key);
-    const uint16_t pos = capacity_info_->reduceHash(hash);
-    if (states_[pos] == EMPTY) return end();
-    if (states_[pos] == static_cast<State>((hash & 0x7F) | 0x80) &&
-        key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
-      return Iterator(this, pos);
-    }
-    const uint16_t cap = ht_len();
-    uint32_t p = pos;
-    p += (cap - 2);
-    int32_t j = 2 - cap;
-    while (true) {
-      if (p >= cap) p -= cap;
-      if (states_[p] == EMPTY) return end();
-      if (states_[p] == static_cast<State>((hash & 0x7F) | 0x80) &&
-          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
-        return Iterator(this, p);
-      }
-      j += 2;
-      assert(j < cap);
-      p += (j >= 0 ? j : -j);
-    }
+    uint32_t hash = hash_fn_(key);
+    uint32_t pos = internal::FindFlatSmallBucket(buffer_, states_, ht_len(),
+                                                 reduceHash(hash), hash, key,
+                                                 key_fn_, key_cmp_fn_);
+    return Iterator(this, pos);
   }
 
  private:
@@ -520,8 +489,8 @@ class FlatSmallHashtable
   }
 
   void resetToEmptySentinel() {
-    capacity_info_ = &impl::kMutableFlatSmallHashtableCapacities[0];
-    slot_count_ = capacity_info_->slot_count;
+    reciprocal_ = impl::kMutableFlatSmallHashtableCapacities[0].reciprocal;
+    slot_count_ = 1;
     used_ = 0;
     erased_ = 0;
     resize_threshold_ = 0;

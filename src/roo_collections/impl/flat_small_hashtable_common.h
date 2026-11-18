@@ -39,9 +39,23 @@ static constexpr float kMaxFillRatio = 3.0f / 4.0f;
 
 namespace impl {
 
-/// Shares a bucket count and its precomputed reducer with read-only clients.
-/// Owners keep only a pointer to this immutable descriptor. The bucket count
-/// must be nonzero; one denotes the empty-table sentinel.
+/// Reduces a 32-bit hash using a precomputed reciprocal and nonzero slot count.
+/// Returns a word-sized index to avoid narrowing lookup intermediates.
+ROO_COLLECTIONS_CONSTEXPR14 uint32_t ReduceFlatSmallHash(uint32_t hash,
+                                                         uint32_t reciprocal,
+                                                         uint16_t slot_count) {
+  uint32_t quotient = (uint64_t{hash} * reciprocal) >> 32;
+  uint32_t remainder = hash - quotient * slot_count;
+  // The quotient can only underestimate by one, so remainder < 2 * slots.
+  // Both remainder and the signed correction fit in int32_t. This selection
+  // compiles to a conditional move on ESP32 rather than a correction branch.
+  int32_t difference = static_cast<int32_t>(remainder) - slot_count;
+  return difference < 0 ? remainder : static_cast<uint32_t>(difference);
+}
+
+/// Precomputes capacity metadata for initializing table headers.
+/// Owners copy the reciprocal and bucket count into their common base. The
+/// bucket count must be nonzero; one denotes the empty-table sentinel.
 struct FlatSmallHashtableCapacity {
   /// Precomputes the 32-bit reciprocal for exact division by @p slots.
   constexpr explicit FlatSmallHashtableCapacity(uint16_t slots)
@@ -49,13 +63,7 @@ struct FlatSmallHashtableCapacity {
 
   /// Reduces a 32-bit hash without division, including the one-slot sentinel.
   ROO_COLLECTIONS_CONSTEXPR14 uint16_t reduceHash(uint32_t hash) const {
-    uint32_t quotient = (uint64_t{hash} * reciprocal) >> 32;
-    uint32_t remainder = hash - quotient * slot_count;
-    // The quotient can only underestimate by one, so remainder < 2 * slots.
-    // Both remainder and the signed correction fit in int32_t. This selection
-    // compiles to a conditional move on ESP32 rather than a correction branch.
-    int32_t difference = static_cast<int32_t>(remainder) - slot_count;
-    return difference < 0 ? remainder : static_cast<uint32_t>(difference);
+    return ReduceFlatSmallHash(hash, reciprocal, slot_count);
   }
 
   /// Returns the mutable entry limit, retaining the final-capacity exception.

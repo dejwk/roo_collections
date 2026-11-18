@@ -153,5 +153,71 @@ TEST(FlatSmallHashtablePrimitives, ProbeVisitsEveryBucket) {
   }
 }
 
+// Records key reads so the lookup sequence can be checked independently.
+struct RecordLookupKey {
+  std::vector<uint32_t>* visited;
+
+  uint32_t operator()(const uint32_t& entry) const {
+    visited->push_back(entry);
+    return entry;
+  }
+};
+
+// Checks both halves of the Radke sequence using its closed-form positions.
+template <typename State>
+void VerifyLookupThroughSoleEmptyBucket() {
+  for (uint32_t capacity : {1u, 7u, 251u, 65519u}) {
+    SCOPED_TRACE(capacity);
+    uint32_t hash = capacity - 1;
+    uint32_t first = hash;
+    State fingerprint = static_cast<State>(static_cast<uint8_t>(hash | 0x80));
+    std::vector<uint32_t> entries(capacity);
+    std::vector<State> states(capacity, fingerprint);
+    std::vector<uint32_t> expected;
+    int64_t half = (capacity - 1) / 2;
+    for (uint32_t index = 0; index < capacity; ++index) {
+      entries[index] = index;
+      int64_t step = index;
+      int64_t offset = step <= half
+                           ? -step * (step + 1)
+                           : -half * (half + 1) + (step - half) * (step - half);
+      int64_t position = (int64_t(first) + offset) % capacity;
+      if (position < 0) position += capacity;
+      expected.push_back(static_cast<uint32_t>(position));
+    }
+    states[expected.back()] = 0;
+    expected.pop_back();
+    // A tombstone must not be passed to the key policy or end the search.
+    if (expected.size() > 2) {
+      states[expected[1]] = 1;
+      expected.erase(expected.begin() + 1);
+    }
+    std::vector<uint32_t> visited;
+    RecordLookupKey key_fn{&visited};
+    std::equal_to<uint32_t> equal;
+    EXPECT_EQ(
+        internal::FindFlatSmallBucket(entries.data(), states.data(), capacity,
+                                      first, hash, UINT32_MAX, key_fn, equal),
+        capacity);
+    EXPECT_EQ(visited, expected);
+    if (!expected.empty()) {
+      visited.clear();
+      const uint32_t* const_entries = entries.data();
+      EXPECT_EQ(internal::FindFlatSmallBucket(const_entries, states.data(),
+                                              capacity, first, hash,
+                                              expected.back(), key_fn, equal),
+                expected.back());
+      EXPECT_EQ(visited, expected);
+    }
+  }
+}
+
+// Verifies signed and unsigned fingerprints, tombstones, sentinel tables and
+// late hits/misses preserve the complete probe sequence at maximum capacity.
+TEST(FlatSmallHashtablePrimitives, LookupReachesSoleEmptyBucket) {
+  VerifyLookupThroughSoleEmptyBucket<int8_t>();
+  VerifyLookupThroughSoleEmptyBucket<uint8_t>();
+}
+
 }  // namespace
 }  // namespace roo_collections

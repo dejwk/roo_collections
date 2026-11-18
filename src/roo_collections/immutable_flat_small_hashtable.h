@@ -393,7 +393,7 @@ class ImmutableFlatSmallHashtable
   constexpr void bindStorage() {
     ReadOnly::buffer_ = entries_.data();
     ReadOnly::states_ = states_.data();
-    ReadOnly::capacity_info_ = &Capacity::kValue;
+    ReadOnly::reciprocal_ = Capacity::kValue.reciprocal;
     ReadOnly::slot_count_ = kSlotCount;
     ReadOnly::dummy_empty_state_ = 0;
     for (uint16_t i = 0; i < kSlotCount && i < 8; ++i) {

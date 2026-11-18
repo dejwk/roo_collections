@@ -236,9 +236,9 @@ TEST(FlatSmallHashtableCapacity, ExplicitCompactionSelectsTightestCapacity) {
   EXPECT_TRUE(empty.contains(1));
 }
 
-// Verifies the cached bucket count follows ownership changes, growth and
-// compaction, including the allocation-free moved-from sentinel.
-TEST(FlatSmallHashtableCapacity, CachedCountFollowsStorage) {
+// Verifies cached capacity metadata follows ownership changes, growth and
+// compaction. Mutable and read-only lookup must agree, including empty sources.
+TEST(FlatSmallHashtableCapacity, CachedMetadataFollowsStorage) {
   using Map = FlatSmallHashMap<uint32_t, uint32_t>;
   for (uint16_t hint : {0, 1, 8, 128, 64000}) {
     Map map(hint);
@@ -246,16 +246,28 @@ TEST(FlatSmallHashtableCapacity, CachedCountFollowsStorage) {
     const uint16_t slots = map.ht_len();
     Map copy(map);
     EXPECT_EQ(copy.ht_len(), slots);
+    EXPECT_EQ(copy.at(7), 12u);
+    EXPECT_EQ(static_cast<const Map&>(copy).at(7), 12u);
     Map assigned;
     assigned = copy;
     EXPECT_EQ(assigned.ht_len(), slots);
+    EXPECT_EQ(assigned.at(7), 12u);
+    EXPECT_EQ(static_cast<const Map&>(assigned).at(7), 12u);
     Map moved(std::move(copy));
     EXPECT_EQ(moved.ht_len(), slots);
+    EXPECT_EQ(moved.at(7), 12u);
+    EXPECT_EQ(static_cast<const Map&>(moved).at(7), 12u);
     EXPECT_EQ(copy.ht_len(), 1);
+    EXPECT_EQ(copy.find(7), copy.end());
+    EXPECT_FALSE(static_cast<const Map&>(copy).contains(7));
     EXPECT_EQ(copy.begin(), copy.end());
     assigned = std::move(moved);
     EXPECT_EQ(assigned.ht_len(), slots);
+    EXPECT_EQ(assigned.at(7), 12u);
+    EXPECT_EQ(static_cast<const Map&>(assigned).at(7), 12u);
     EXPECT_EQ(moved.ht_len(), 1);
+    EXPECT_EQ(moved.find(7), moved.end());
+    EXPECT_FALSE(static_cast<const Map&>(moved).contains(7));
     assigned.compact();
     EXPECT_EQ(assigned.ht_len(), 3);
     EXPECT_EQ(assigned.at(7), 12u);
@@ -263,6 +275,12 @@ TEST(FlatSmallHashtableCapacity, CachedCountFollowsStorage) {
     const Map::read_only_type& view = assigned;
     EXPECT_EQ(std::distance(view.begin(), view.end()), 200);
     EXPECT_EQ(view.ht_len(), assigned.ht_len());
+    for (uint32_t i = 0; i < 200; ++i) {
+      EXPECT_EQ(assigned.at(i), i == 7 ? 12u : i);
+      EXPECT_EQ(view.at(i), i == 7 ? 12u : i);
+    }
+    EXPECT_EQ(assigned.find(UINT32_MAX), assigned.end());
+    EXPECT_FALSE(view.contains(UINT32_MAX));
     Map empty(0);
     assigned = empty;
     EXPECT_EQ(assigned.ht_len(), 1);

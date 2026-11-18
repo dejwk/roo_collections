@@ -241,5 +241,32 @@ TEST(FlatSmallHashtableChurn, OccupiedFingerprintByte) {
   }
 }
 
+struct MutableEquality {
+  unsigned* calls;
+
+  bool operator()(int first, int second) {
+    ++*calls;
+    return first == second;
+  }
+};
+
+// Verifies sharing the lookup kernel does not require mutable lookup policies
+// to become const-callable; stateful non-const comparators remain supported.
+TEST(FlatSmallHashtableChurn, MutableLookupPolicy) {
+  unsigned calls = 0;
+  FlatSmallHashMap<int, int, ConstantHash, MutableEquality> map(
+      8, ConstantHash(), MutableEquality{&calls});
+  map.insert({1, 10});
+  map.insert({2, 20});
+  calls = 0;
+  ASSERT_NE(map.find(2), map.end());
+  EXPECT_EQ(map.find(2)->second, 20);
+  EXPECT_GT(calls, 0u);
+  EXPECT_EQ(map.find(3), map.end());
+  ASSERT_TRUE(map.erase(1));
+  EXPECT_EQ(map.find(1), map.end());
+  EXPECT_EQ(map.find(2)->second, 20);
+}
+
 }  // namespace
 }  // namespace roo_collections

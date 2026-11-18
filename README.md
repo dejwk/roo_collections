@@ -36,10 +36,10 @@ Mutable tables, maps and sets use the largest primes congruent to 3 modulo 4
 below `2^(k/4)`, for `k = 1..64`. Repeated small values are omitted, leaving 50
 candidate sizes including the one-slot empty sentinel. The primes and their
 reciprocal descriptors each have one shared constant copy across translation
-units. Each reducer stores a precomputed 32-bit reciprocal and uses a
-multiply-high quotient estimate with signed correction to compute exact modulo
-without division during lookup. Immutable tables use the same reducer with their
-own constant capacity.
+units. Each table copies the precomputed 32-bit reciprocal into its header and
+uses a multiply-high quotient estimate with signed correction to compute exact
+modulo without division during lookup. Immutable tables use the same reducer
+with their own constant capacity.
 
 A size hint selects the smallest candidate accommodating the requested entry
 count at 75% occupancy. For example, a 100-entry hint uses 151 buckets instead
@@ -92,10 +92,11 @@ object. Destroy concrete owners, never base pointers; base construction,
 assignment and destruction are protected to prevent slicing and ownership loss.
 
 Lookup reads the existing arrays and policies directly, without storage
-callbacks or virtual calls. Each header points to constant metadata containing
-the bucket count and modulo reciprocal. This replaces the old capacity index
-without enlarging the header on 32-bit targets. Immutable owners bind storage
-pointers to their own inline arrays on construction, copy, move and assignment.
+callbacks or virtual calls. Each header stores its bucket count and 32-bit
+modulo reciprocal directly, avoiding a capacity-descriptor indirection. The
+reciprocal replaces the former pointer without enlarging the header on 32-bit
+targets. Immutable owners bind storage pointers to their own inline arrays on
+construction, copy, move and assignment.
 Concrete immutable lookup retains its compile-time-capacity implementation.
 
 The default `ImmutableHashFn` is an alias of `DefaultHashFn`, so default-policy

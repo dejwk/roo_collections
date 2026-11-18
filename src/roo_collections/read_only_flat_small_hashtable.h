@@ -84,7 +84,7 @@ class ReadOnlyFlatSmallHashtable
 
     constexpr ConstIterator(const ReadOnlyFlatSmallHashtable<
                                 Entry, Key, HashFn, KeyFn, KeyCmpFn>* ht,
-                            uint16_t pos)
+                            uint32_t pos)
         : ht_(ht), pos_(pos) {}
 
     const ReadOnlyFlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn>* ht_;
@@ -148,9 +148,9 @@ class ReadOnlyFlatSmallHashtable
   /// @return `end()` when not found.
   ROO_COLLECTIONS_CONSTEXPR14 ConstIterator find(const Key& key) const {
     uint32_t hash = hash_fn_(key);
-    uint16_t pos = internal::FindFlatSmallBucket(
-        buffer_, states_, ht_len(), capacity_info_->reduceHash(hash), hash, key,
-        key_fn_, key_cmp_fn_);
+    uint32_t pos = internal::FindFlatSmallBucket(
+        static_cast<const Entry*>(buffer_), states_, ht_len(), reduceHash(hash),
+        hash, key, key_fn_, key_cmp_fn_);
     return ConstIterator(this, pos);
   }
 
@@ -160,9 +160,9 @@ class ReadOnlyFlatSmallHashtable
             typename = has_is_transparent_t<KeyCmpFn, K>>
   ROO_COLLECTIONS_CONSTEXPR14 ConstIterator find(const K& key) const {
     uint32_t hash = hash_fn_(key);
-    uint16_t pos = internal::FindFlatSmallBucket(
-        buffer_, states_, ht_len(), capacity_info_->reduceHash(hash), hash, key,
-        key_fn_, key_cmp_fn_);
+    uint32_t pos = internal::FindFlatSmallBucket(
+        static_cast<const Entry*>(buffer_), states_, ht_len(), reduceHash(hash),
+        hash, key, key_fn_, key_cmp_fn_);
     return ConstIterator(this, pos);
   }
 
@@ -185,6 +185,11 @@ class ReadOnlyFlatSmallHashtable
   }
 
  protected:
+  /// Reduces a hash using capacity metadata stored directly in this header.
+  ROO_COLLECTIONS_CONSTEXPR14 uint32_t reduceHash(uint32_t hash) const {
+    return impl::ReduceFlatSmallHash(hash, reciprocal_, slot_count_);
+  }
+
   /// Finds the next occupied bucket, skipping the first eight with a bitmap.
   ROO_COLLECTIONS_CONSTEXPR14 uint16_t nextOccupiedBucket(uint32_t pos) const {
     if (pos < 8) {
@@ -236,17 +241,17 @@ class ReadOnlyFlatSmallHashtable
 
   ~ReadOnlyFlatSmallHashtable() = default;
 
-  // Share immutable capacity metadata and a single copy of storage pointers
-  // and counters. The descriptor pointer replaces the old capacity index,
-  // preserving the header size on 32-bit targets. Public access is const.
+  // Keep capacity metadata, storage pointers and counters in the common base.
+  // The 32-bit reciprocal replaces the descriptor pointer without enlarging
+  // the header on 32-bit targets. Public access is const.
   HashFn hash_fn_;
   KeyFn key_fn_;
   KeyCmpFn key_cmp_fn_;
-  const impl::FlatSmallHashtableCapacity* capacity_info_ = nullptr;
+  uint32_t reciprocal_ = UINT32_MAX;
   uint16_t used_ = 0;
   uint16_t erased_ = 0;
   uint16_t resize_threshold_ = 0;
-  // Cached bucket count avoids a descriptor load; fits 32-bit header padding.
+  // Bucket count and reciprocal describe the same current storage.
   uint16_t slot_count_ = 1;
   Entry* buffer_ = nullptr;
   State* states_ = nullptr;

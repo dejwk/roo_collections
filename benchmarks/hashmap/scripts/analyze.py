@@ -250,20 +250,21 @@ def main():
             text.append("| " + name + " | " + " | ".join(values) + f" | {heap:.0f} |")
         text.append("")
     peers = [name for name in MAP_PROFILES[profile] if name not in ("roo", "std_map")]
-    text += ["## Lookup speed ratios, 16 entries through each fixture limit (at most 512)", "",
-             "Geometric mean of competitor/Roo time. Above 1 means Roo is faster; this is a fixed fixture, "
-             "not a confidence interval or universal ranking.", "",
-             "| Hash | Key | Workload | " + " | ".join(name + " / Roo" for name in peers) + " |",
-             "|---|---|---|" + "---:|" * len(peers)]
-    selected = [n for n in SIZES if 16 <= n <= 512]
-    for hashing in ("default", "absl_hash"):
-        for key in SUITES[suite]:
-            key_sizes = [n for n in selected if ("roo", hashing, key, n, "find_hit") in summary]
-            for work in ("find_hit", "find_miss"):
-                ratios = [math.exp(statistics.mean(math.log(value(name, hashing, key, n, work) /
-                          value("roo", hashing, key, n, work)) for n in key_sizes))
-                          for name in peers]
-                text.append(f"| {hashing} | {key} | {work} | " + " | ".join(f"{v:.3f}x" for v in ratios) + " |")
+    if peers:
+        text += ["## Lookup speed ratios, 16 entries through each fixture limit (at most 512)", "",
+                 "Geometric mean of competitor/Roo time. Above 1 means Roo is faster; this is a fixed fixture, "
+                 "not a confidence interval or universal ranking.", "",
+                 "| Hash | Key | Workload | " + " | ".join(name + " / Roo" for name in peers) + " |",
+                 "|---|---|---|" + "---:|" * len(peers)]
+        selected = [n for n in SIZES if 16 <= n <= 512]
+        for hashing in ("default", "absl_hash"):
+            for key in SUITES[suite]:
+                key_sizes = [n for n in selected if ("roo", hashing, key, n, "find_hit") in summary]
+                for work in ("find_hit", "find_miss"):
+                    ratios = [math.exp(statistics.mean(math.log(value(name, hashing, key, n, work) /
+                              value("roo", hashing, key, n, work)) for n in key_sizes))
+                              for name in peers]
+                    text.append(f"| {hashing} | {key} | {work} | " + " | ".join(f"{v:.3f}x" for v in ratios) + " |")
     if profile == "extended":
         text += ["", "ETL uses exact fixed capacity N with N buckets. Its embedded storage and adapter are included in heap/object bytes. Dynamic growth is unsupported and omitted; presized construction includes allocating the entire fixed-capacity object."]
     text += ["", "Only the recorded board, toolchain and one deterministic seed are represented. "

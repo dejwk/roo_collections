@@ -11,9 +11,8 @@ static_assert(std::is_same<hashmap_benchmark::BoostHash<std::string>,
                            boost::hash<std::string>>::value);
 static_assert(std::is_same<hashmap_benchmark::DenseHash<std::string>,
                            ankerl::unordered_dense::hash<std::string>>::value);
-static_assert(
-    boost::hash_is_avalanching<
-        hashmap_benchmark::BoostHash<roo_collections::SmallString<13>>>::value);
+static_assert(boost::hash_is_avalanching<hashmap_benchmark::BoostHash<
+                  hashmap_benchmark::SmallString12Key>>::value);
 
 template <typename Key>
 struct CountingHash {
@@ -107,9 +106,9 @@ int main() {
   CheckKeys<uint32_t>();
   CheckKeys<uint64_t>();
   CheckKeys<std::string>();
-  CheckKeys<roo_collections::SmallString<13>>();
-  CheckKeys<roo_collections::SmallString<49>>();
+  CheckKeys<hashmap_benchmark::SmallString12Key>();
+  CheckKeys<hashmap_benchmark::SmallString48Key>();
   CheckCustomHashes<uint32_t>();
   CheckCustomHashes<std::string>();
-  CheckCustomHashes<roo_collections::SmallString<13>>();
+  CheckCustomHashes<hashmap_benchmark::SmallString12Key>();
 }

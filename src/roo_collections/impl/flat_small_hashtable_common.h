@@ -204,7 +204,7 @@ struct DefaultHashFn<const char*> {
 template <size_t N>
 struct DefaultHashFn<SmallString<N>> {
   size_t operator()(const SmallString<N>& str) const {
-    return DefaultHashFn<::roo::string_view>()(str);
+    return DefaultHashFn<::roo::string_view>()(str.view());
   }
 };
 
@@ -236,7 +236,7 @@ struct TransparentStringHashFn {
   }
   template <size_t N>
   inline size_t operator()(const SmallString<N>& val) const {
-    return DefaultHashFn<::roo::string_view>()(val);
+    return DefaultHashFn<::roo::string_view>()(val.view());
   }
 
 #ifdef ARDUINO

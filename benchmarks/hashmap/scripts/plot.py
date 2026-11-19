@@ -53,7 +53,7 @@ class Results:
         self.maps = MAP_PROFILES[self.profile]
         self.suite = suite_for_keys({row["key"] for row in rows})
         self.keys = GENERAL_KEYS if self.suite == "general" else SMALL_STRING_KEYS
-        self.key_labels = KEY_LABELS if self.suite == "general" else ("SmallString<13> · 12 chars", "SmallString<49> · 48 chars")
+        self.key_labels = KEY_LABELS if self.suite == "general" else ("SmallString · 12 chars", "SmallString · 48 chars")
         self.short_keys = SHORT_KEYS if self.suite == "general" else ("SmallString\n12 chars", "SmallString\n48 chars")
         self.data = {}
         self.sizes = {key: set() for key in self.keys}
@@ -164,8 +164,12 @@ class Results:
             text += "\nETL: fixed capacity N, N buckets; embedded storage + adapter included; no dynamic-growth series."
         if self.small_string is not None:
             limit = max(self.small_string.sizes["small_string48"])
-            text += ("\nRoo (SmallString): separate capture/board; other string series use std::string. "
+            extra_layout = ("aligned length-delimited keys; " if self.small_string.build.get(
+                "small_string_layout") == "length_tail_no_terminator" else "")
+            text += (f"\nRoo (SmallString): {extra_layout}separate capture/board; other string series use std::string. "
                      f"48-character SmallString ends at {limit} entries.")
+        if self.build.get("comparison_note"):
+            text += "\n" + self.build["comparison_note"]
         return text
 
 
@@ -208,7 +212,8 @@ def decorate(fig, axes, results, title, subtitle, footer=None):
         ax.spines[["top", "right"]].set_visible(False)
         ax.tick_params(labelsize=8.5)
     top = (0.70 if short else 0.77) if results.profile == "extended" else (0.77 if short else 0.82)
-    fig.subplots_adjust(left=0.065, right=0.99, top=top, bottom=0.18 if results.profile == "extended" else 0.145,
+    bottom = 0.22 if results.build.get("comparison_note") else (0.18 if results.profile == "extended" else 0.145)
+    fig.subplots_adjust(left=0.065, right=0.99, top=top, bottom=bottom,
                         hspace=0.44, wspace=0.31)
 
 
@@ -357,6 +362,8 @@ def write_gallery(output, charts, results, manifest):
                   f"{len(results.small_string.data):,}-case capture on "
                   f"{results.small_string.build['board']}; other string series use std::string. "
                   "Timing differences also include board and binary-layout effects.")
+    if results.build.get("comparison_note"):
+        intro += " " + results.build["comparison_note"]
     source_report = os.path.relpath(results.directory / "REPORT.md", output)
     policy_note = (results.fill_label() + "; competitor capacity/load policies remain at defaults. "
                    if results.fill_label() else "Default capacity/load policies are retained. ")

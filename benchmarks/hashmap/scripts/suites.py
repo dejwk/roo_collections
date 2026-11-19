@@ -6,7 +6,7 @@ SUITES = {"general": GENERAL_KEYS, "small_string": SMALL_STRING_KEYS}
 CLASSIC_MAPS = ("roo", "absl_flat", "std_unordered", "absl_node", "std_map")
 EXTRA_MAPS = ("tsl_robin", "unordered_dense", "etl", "boost_flat", "emhash5")
 ALL_MAPS = CLASSIC_MAPS + EXTRA_MAPS
-MAP_PROFILES = {"classic": CLASSIC_MAPS, "extended": ALL_MAPS}
+MAP_PROFILES = {"classic": CLASSIC_MAPS, "extended": ALL_MAPS, "roo_only": ("roo",)}
 
 
 def profile_for_maps(maps):

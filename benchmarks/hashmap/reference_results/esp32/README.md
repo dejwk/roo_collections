@@ -1,17 +1,19 @@
 # ESP32 reference results — ten-container comparison
 
-Fresh captures from 2026-11-10 compare Roo against nine external containers.
-The five additions are Tessil robin_map 1.4.1, unordered_dense 5.3.3,
-ETL unordered_map 20.49.0, Boost unordered_flat_map 1.90.0 and emhash5 1.3.0.
-Roo uses the adopted `word_bitmap8_fingerprint` implementation and a 75% fill
-limit. No Roo implementation changes were made for this comparison.
+Roo was remeasured on 2026-11-19 with length-delimited SmallString keys.
+The aligned 12- and 48-character Roo fixtures use `SmallString<16>` and
+`SmallString<52>`, including a trailing length byte. The table code uses the
+`04e569b` reciprocal and lookup baseline with a 75% fill limit.
+The nine competitors retain their original 2026-11-10 captures.
 
 - [General comparison PDF](general/benchmark_charts.pdf): all ten containers;
   **Roo (SmallString)** is an additional series in every string panel.
 - [SmallString comparison PDF](small_string/benchmark_charts.pdf): all ten
   containers use SmallString keys.
-- [Provenance and checksums](manifest.json), [general raw bundle](general/raw.tar.gz),
-  [SmallString raw bundle](small_string/raw.tar.gz).
+- [Detailed general tables](general/REPORT.md) and [SmallString tables](small_string/REPORT.md), including Roo before/after ratios.
+- [Provenance and checksums](manifest.json).
+- Original full captures: [general](general/raw.tar.gz), [SmallString](small_string/raw.tar.gz).
+- Fresh Roo-only captures: [general](general/roo-update.tar.gz), [SmallString](small_string/roo-update.tar.gz).
 
 Each PDF contains 11 pages: overview; lookup, construction/copy,
 iteration/mutation and cache charts for both hash policies; retained memory;
@@ -20,14 +22,17 @@ and presizing. The dashed/hatched Roo (SmallString) series has 12- and
 
 ## Capture and interpretation
 
-| Suite | Device | Complete cases | Samples per case |
-|---|---|---:|---:|
-| General | ESP32-D0WD-V3 revision 3.1, COM18 (`/dev/ttyUSB1`) | 11,553 | 7 |
-| SmallString | ESP32-D0WDQ6 revision 1.1, COM20 (`/dev/ttyUSB0`) | 4,460 | 7 |
+| Suite | Device | Comparison cases | Fresh Roo cases | Roo passes |
+|---|---|---:|---:|---:|
+| General | ESP32-D0WD-V3 revision 3.1, COM18 (`/dev/ttyUSB1`) | 11,553 | 1,234 | 3 |
+| SmallString | ESP32-D0WDQ6 revision 1.1, COM20 (`/dev/ttyUSB0`) | 4,460 | 476 | 3 |
 
-One complete capture per board; zero discarded rows. All device correctness,
-per-map heap-release and whole-suite heap checks passed. Both original firmware
-images were restored and their full 4 MiB flash contents verified afterward.
+The same board pairing as the original comparison was used. There are 5,130 new
+Roo observations, each with seven timed samples, and zero discarded rows. All
+device correctness, per-map heap-release and whole-suite heap checks passed.
+Both original firmware images were restored and independently verified over the
+full 4 MiB flash contents afterward. Competitors have one original observation
+per case; Roo points now use the median of three run medians.
 The measured settings are 240 MHz, internal RAM without PSRAM, C++17, `-O2`,
 `-DNDEBUG`, pioarduino 55.03.37, Arduino 3.3.7, GCC 14.2.0 and light heap poisoning.
 
@@ -49,12 +54,17 @@ baseline; its one-time allocation is recorded as `RUNTIME_INIT` in each raw log.
 It is not attributed to individual maps. Per-map retained heap is not peak
 memory, a count of allocations, or a fragmentation stress test.
 
-Timings are medians of seven warm samples, with no between-run confidence
-intervals. The expanded firmware has a different code/cache layout from the
-previous five-container binary: changes from older captures do not by themselves
-establish a library regression. Both suites use the same new firmware, but run
-on different boards; the SmallString overlay does not isolate key representation
-as the only changed factor. Inspect the by-size panels before deciding.
+The same new firmware served both Roo suites and still contains all ten
+container implementations; a runtime selector skipped competitor measurements.
+Toolchain settings, fixture payloads and dependency contents match the original
+captures. The retained SmallString competitor results use the former packed,
+NUL-terminated 13- and 49-byte keys. New Roo results use aligned 16- and 52-byte
+keys with a cached length. That distinction matters for timing and memory.
+The two changed string adapter headers are recorded in the manifest.
+
+Code layout, allocation history and hash seeds can also differ between builds.
+The SmallString overlay comes from a separate board. The charts show the
+recorded timings and per-run ranges without confidence intervals.
 
 ## Default-hash performance relative to Roo
 
@@ -68,29 +78,29 @@ Roo, below 1× favors the competitor. Each available key/size case with at least
 
 | Container | Hit lookup | Miss lookup | Iteration | Erase + insert |
 |---|---:|---:|---:|---:|
-| Abseil flat | 1.95× | 2.45× | 1.26× | 2.22× |
-| std::unordered_map | 0.84× | 1.07× | 0.19× | 8.32× |
-| Abseil node | 2.00× | 2.50× | 1.27× | 8.34× |
-| std::map | 1.45× | 1.78× | 1.52× | 7.51× |
-| Tessil robin_map | 0.66× | 0.65× | 1.11× | 0.69× |
-| unordered_dense | 2.81× | 3.28× | 0.19× | 2.62× |
-| ETL (fixed N) | 0.70× | 0.82× | 0.75× | 0.78× |
-| Boost flat | 1.17× | 1.15× | 1.04× | 1.18× |
-| emhash5 | 0.54× | 0.56× | 0.75× | 0.55× |
+| Abseil flat | 2.46× | 2.67× | 1.27× | 2.31× |
+| std::unordered_map | 1.06× | 1.16× | 0.20× | 8.68× |
+| Abseil node | 2.52× | 2.72× | 1.28× | 8.71× |
+| std::map | 1.82× | 1.94× | 1.54× | 7.84× |
+| Tessil robin_map | 0.83× | 0.71× | 1.13× | 0.72× |
+| unordered_dense | 3.54× | 3.58× | 0.20× | 2.73× |
+| ETL (fixed N) | 0.89× | 0.90× | 0.75× | 0.81× |
+| Boost flat | 1.47× | 1.25× | 1.06× | 1.23× |
+| emhash5 | 0.68× | 0.61× | 0.75× | 0.57× |
 
 ### SmallString suite
 
 | Container | Hit lookup | Miss lookup | Iteration | Erase + insert |
 |---|---:|---:|---:|---:|
-| Abseil flat | 1.82× | 2.36× | 1.30× | 2.14× |
-| std::unordered_map | 1.04× | 1.12× | 0.20× | 3.11× |
-| Abseil node | 1.82× | 2.36× | 1.29× | 6.13× |
-| std::map | 1.14× | 0.78× | 1.50× | 3.44× |
-| Tessil robin_map | 1.02× | 1.03× | 1.16× | 1.21× |
-| unordered_dense | 1.94× | 2.52× | 0.20× | 2.17× |
-| ETL (fixed N) | 0.90× | 0.90× | 0.73× | 0.90× |
-| Boost flat | 1.03× | 1.01× | 1.07× | 1.13× |
-| emhash5 | 0.97× | 0.99× | 0.78× | 0.92× |
+| Abseil flat | 2.83× | 3.10× | 1.28× | 3.26× |
+| std::unordered_map | 1.62× | 1.47× | 0.19× | 4.75× |
+| Abseil node | 2.83× | 3.11× | 1.27× | 9.34× |
+| std::map | 1.78× | 1.03× | 1.48× | 5.25× |
+| Tessil robin_map | 1.58× | 1.36× | 1.15× | 1.85× |
+| unordered_dense | 3.02× | 3.32× | 0.20× | 3.31× |
+| ETL (fixed N) | 1.39× | 1.18× | 0.72× | 1.38× |
+| Boost flat | 1.59× | 1.33× | 1.06× | 1.72× |
+| emhash5 | 1.51× | 1.31× | 0.77× | 1.40× |
 
 ### General suite with shared Abseil hashing
 
@@ -99,15 +109,15 @@ postprocessing and capacity policies still differ; std::map remains ordered.
 
 | Container | Hit lookup | Miss lookup | Iteration | Erase + insert |
 |---|---:|---:|---:|---:|
-| Abseil flat | 1.64× | 1.93× | 1.29× | 2.06× |
-| std::unordered_map | 1.17× | 1.32× | 0.19× | 8.24× |
-| Abseil node | 1.67× | 1.95× | 1.29× | 7.04× |
-| std::map | 1.23× | 1.43× | 1.52× | 7.06× |
-| Tessil robin_map | 0.82× | 0.84× | 1.11× | 0.78× |
-| unordered_dense | 2.42× | 2.65× | 0.19× | 3.48× |
-| ETL (fixed N) | 0.78× | 0.86× | 0.73× | 0.94× |
-| Boost flat | 1.24× | 1.27× | 1.07× | 1.27× |
-| emhash5 | 0.66× | 0.67× | 0.75× | 0.66× |
+| Abseil flat | 2.11× | 2.18× | 1.20× | 2.16× |
+| std::unordered_map | 1.51× | 1.49× | 0.18× | 8.64× |
+| Abseil node | 2.15× | 2.20× | 1.20× | 7.39× |
+| std::map | 1.59× | 1.61× | 1.42× | 7.41× |
+| Tessil robin_map | 1.06× | 0.95× | 1.04× | 0.82× |
+| unordered_dense | 3.12× | 2.99× | 0.18× | 3.65× |
+| ETL (fixed N) | 1.01× | 0.97× | 0.68× | 0.99× |
+| Boost flat | 1.61× | 1.43× | 1.00× | 1.33× |
+| emhash5 | 0.85× | 0.76× | 0.70× | 0.69× |
 
 ### Retained memory at 128 entries
 
@@ -134,27 +144,31 @@ the shared query fixtures. All string rows except Roo (SmallString) use std::str
 From `benchmarks/hashmap`, using Python 3.10+:
 
 ```sh
-python scripts/bundle.py unpack reference_results/esp32/general/raw.tar.gz \
-  --output results/reference-general \
-  --sha256 e001a68f64a3071d7625756a6b7d788e0f6c17b571ef866d355418777513d0c0
-python scripts/bundle.py unpack reference_results/esp32/small_string/raw.tar.gz \
-  --output results/reference-small-string \
-  --sha256 4949e9a406dd33bba370bfd33059320c3e4b825082b5b0c59f736b16768977c0
+python scripts/refresh.py --previous reference_results/esp32/general/raw.tar.gz \
+  --roo reference_results/esp32/general/roo-update.tar.gz \
+  --allow-string-adapter-changes --output results/reference-general
+python scripts/refresh.py --previous reference_results/esp32/small_string/raw.tar.gz \
+  --roo reference_results/esp32/small_string/roo-update.tar.gz \
+  --allow-string-adapter-changes --output results/reference-small-string
 python -m pip install -r scripts/requirements-charts.txt
 python scripts/plot.py --results-dir results/reference-general \
   --small-string-results results/reference-small-string
 python scripts/plot.py --results-dir results/reference-small-string
 ```
 
-Use fresh output paths: unpack refuses to overwrite existing results. Generated
-CSVs, reports, HTML galleries, PNG/SVG figures and PDFs stay in ignored `results/`.
-The manifest records the exact numeric-summary and plotting-source checksums.
-These PDFs use Python 3.13.5 and Matplotlib 3.11.2; rendering can vary with versions.
+Use fresh output paths: refresh refuses to overwrite existing results. Both raw
+bundles are checksum-verified and strictly reanalyzed before composing the tables.
+`--previous-sha256` and `--roo-sha256` optionally check the whole-archive hashes
+listed in the manifest. The string-adapter flag records the two changed headers.
+Source logs, metadata and coverage reports are retained
+under `sources/previous` and `sources/roo`. Every measurement has a source label;
+no synthetic full-suite raw capture is created. Regenerated CSVs, reports, HTML
+galleries, PNG/SVG figures and PDFs stay in ignored `results/`.
 
-The raw metadata is preserved unchanged. Its base commit is
-`6e232ae6de0a46a7cecfe7448e699ed4a68e74fc` plus the benchmark source
-changes identified by exact SHA-256 hashes. Only benchmark code changed; the
-measured Roo library sources are identified separately in the bundled metadata.
-Historical absolute paths identify the build inputs, not required checkout paths.
-To repeat on hardware, follow the [build/capture instructions](../../README.md).
+The manifest records numeric-summary, archive, PDF and tooling checksums.
+These PDFs use Python 3.13.5 and Matplotlib 3.11.2; rendering can vary with versions.
+The original metadata is preserved unchanged. Fresh metadata identifies the
+committed Roo baseline and the SmallString and benchmark working-tree changes by exact
+source hashes. Historical absolute paths identify inputs, not required checkout
+paths. To repeat on hardware, follow the [build/capture instructions](../../README.md).
 Full flash backups, dependency trees and firmware binaries are not published.

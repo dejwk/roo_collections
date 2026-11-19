@@ -57,6 +57,78 @@ class ToolsTest(unittest.TestCase):
         self.results = self.root / "run"
         self.log = fixture(self.results)
 
+    def test_roo_only_profile_requires_complete_cases(self):
+        """Verifies the runtime selector's protocol covers every Roo case and nothing else."""
+        import plot
+        for suite in ("general", "small_string"):
+            directory = self.root / suite
+            log = fixture(directory, suite, "roo_only")
+            run_script("analyze.py", log, "--output-dir", directory)
+            results = plot.Results(directory)
+            self.assertEqual(set(results.data), analyze.expected_cases(suite, "roo_only"))
+            self.assertEqual(results.maps, ("roo",))
+            lines = log.read_text().splitlines()
+            log.write_text("\n".join(lines[:1] + lines[2:]) + "\n")
+            failed = run_script("analyze.py", log, "--output-dir", directory, check=False)
+            self.assertNotEqual(failed.returncode, 0)
+
+    def test_refresh_replaces_only_roo_and_preserves_raw_provenance(self):
+        """Verifies bundle reanalysis, exact row replacement, provenance and overwrite protection."""
+        import refresh
+        old = self.root / "old"
+        new = self.root / "new"
+        for directory, profile, date in ((old, "extended", "2026-11-10"), (new, "roo_only", "2026-11-18")):
+            log = fixture(directory, "small_string", profile)
+            build = json.loads((directory / "build_metadata.json").read_text())
+            build["recorded_at"] = date
+            (directory / "build_metadata.json").write_text(json.dumps(build))
+            if directory == new:
+                log.write_text(log.read_text().replace(",1.0,2.0,3.0,", ",0.5,1.0,1.5,"))
+            bundle.pack(directory, [log], directory.with_suffix(".tar.gz"), profile)
+        output = self.root / "refreshed"
+        result = refresh.refresh(old.with_suffix(".tar.gz"), new.with_suffix(".tar.gz"), output)
+        rows = refresh.read_rows(output / "summary.csv")
+        self.assertEqual(len(rows), 4460)
+        self.assertEqual(result["refreshed_cases"], len(analyze.expected_cases("small_string", "roo_only")))
+        self.assertTrue(all(float(row["median_ns"]) == (1 if row["map"] == "roo" else 2) for row in rows))
+        previous = refresh.read_rows(output / "sources/previous/summary.csv")
+        self.assertEqual([r for r in rows if r["map"] != "roo"], [r for r in previous if r["map"] != "roo"])
+        measurements = refresh.read_rows(output / "measurements.csv")
+        self.assertTrue(all(r["capture_source"] == ("roo" if r["map"] == "roo" else "previous") for r in measurements))
+        self.assertIn("retained", (output / "REPORT.md").read_text())
+        import plot
+        self.assertIn("Separate firmware", plot.Results(output).footer())
+        with self.assertRaisesRegex(ValueError, "overwrite"):
+            refresh.refresh(old.with_suffix(".tar.gz"), new.with_suffix(".tar.gz"), output)
+        # A settings mismatch or changed key fixture must not silently compose.
+        build_path = output / "sources/roo/build_metadata.json"
+        original = json.loads(build_path.read_text())
+        for field, value in (("cpu_mhz", 160), ("source_sha256", {common.HARNESS: "x", "fixture": "changed"})):
+            build = dict(original)
+            build[field] = value
+            build_path.write_text(json.dumps(build))
+            with self.assertRaises(ValueError):
+                refresh.validate_sources(output / "sources/previous", output / "sources/roo")
+        adapter = "benchmarks/hashmap/src/benchmark_keys.h"
+        updated = dict(original, source_sha256=dict(original["source_sha256"], **{adapter: "d" * 64}))
+        build_path.write_text(json.dumps(updated))
+        with self.assertRaisesRegex(ValueError, "benchmark_keys.h"):
+            refresh.validate_sources(output / "sources/previous", output / "sources/roo")
+        _, _, changes = refresh.validate_sources(output / "sources/previous", output / "sources/roo",
+                                                 allow_string_adapter_changes=True)
+        self.assertEqual(changes, [adapter])
+        updated["source_sha256"]["another_dependency.h"] = "e" * 64
+        build_path.write_text(json.dumps(updated))
+        with self.assertRaisesRegex(ValueError, "another_dependency.h"):
+            refresh.validate_sources(output / "sources/previous", output / "sources/roo",
+                                     allow_string_adapter_changes=True)
+        build_path.write_text(json.dumps(original))
+        summary_path = output / "sources/roo/summary.csv"
+        data = refresh.read_rows(summary_path)
+        refresh.write_rows(summary_path, data[1:])
+        with self.assertRaises(ValueError):
+            refresh.validate_sources(output / "sources/previous", output / "sources/roo")
+
     def test_complete_suite_preserves_all_case_values(self):
         run_script("analyze.py", self.log, "--output-dir", self.results)
         with (self.results / "summary.csv").open() as stream:

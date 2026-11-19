@@ -21,3 +21,6 @@ artifacts/
 !/reference_results/esp32/general/benchmark_charts.pdf
 !/reference_results/esp32/small_string/raw.tar.gz
 !/reference_results/esp32/small_string/benchmark_charts.pdf
+
+!/reference_results/esp32/general/roo-update.tar.gz
+!/reference_results/esp32/small_string/roo-update.tar.gz

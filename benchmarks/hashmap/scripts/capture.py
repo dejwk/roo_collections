@@ -13,8 +13,11 @@ def main():
     parser.add_argument("--timeout", type=float, default=1800)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--suite", choices=("general", "small_string"), default="general")
+    parser.add_argument("--maps", choices=("all", "roo"), default="all")
     args = parser.parse_args()
     command = b"s" if args.suite == "small_string" else b"r"
+    if args.maps == "roo":
+        command = command.upper()
     connection = serial.Serial(port=None, baudrate=115200, timeout=1)
     connection.dtr = False
     connection.rts = False

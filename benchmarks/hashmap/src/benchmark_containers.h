@@ -26,8 +26,7 @@ struct DenseHashFor {
 template <size_t N>
 struct SmallStringDenseHash : ankerl::unordered_dense::hash<std::string_view> {
   uint64_t operator()(const roo_collections::SmallString<N>& key) const {
-    return ankerl::unordered_dense::hash<std::string_view>{}(
-        std::string_view(key.c_str(), key.length()));
+    return ankerl::unordered_dense::hash<std::string_view>{}(key.view());
   }
 };
 
@@ -51,8 +50,7 @@ struct SmallStringBoostHash {
       boost::hash_is_avalanching<boost::hash<std::string_view>>;
 
   size_t operator()(const roo_collections::SmallString<N>& key) const {
-    return boost::hash<std::string_view>{}(
-        std::string_view(key.c_str(), key.length()));
+    return boost::hash<std::string_view>{}(key.view());
   }
 };
 
@@ -69,8 +67,9 @@ template <typename Key>
 struct EtlHash {
   size_t operator()(const Key& key) const {
     if constexpr (IsStringKey<Key>::value) {
+      const roo::string_view view(key);
       return etl::hash<etl::string_view>{}(
-          etl::string_view(key.c_str(), key.length()));
+          etl::string_view(view.data(), view.size()));
     } else {
       return etl::hash<Key>{}(key);
     }

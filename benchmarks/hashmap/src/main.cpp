@@ -328,14 +328,16 @@ void run_case(const char* name, const char* hashing, const char* key_name,
 }
 
 template <class Key>
-void run_type(const char* key_name, int length = 0, bool sequential = false) {
+void run_type(const char* key_name, int length = 0, bool sequential = false,
+              bool roo_only = false) {
   // Includes exact Abseil EraseEmplace / Iteration sizes and growth boundaries.
   const unsigned sizes[] = {1,  2,  4,   7,   8,   10,  15,  16,   32,
                             54, 64, 100, 128, 256, 400, 512, 1024, 2048};
   for (unsigned n : sizes) {
     // Inline 48-character fixtures leave too little contiguous memory for
     // old/new growing tables together at 512 entries on the classic ESP32.
-    if constexpr (std::is_same<Key, roo_collections::SmallString<49>>::value) {
+    if constexpr (std::is_same<Key,
+                               hashmap_benchmark::SmallString48Key>::value) {
       if (n > 400) continue;
     }
     if (length && n > 512) continue;
@@ -356,7 +358,9 @@ void run_type(const char* key_name, int length = 0, bool sequential = false) {
     }
     // Rotate execution order by size and run to reduce systematic order bias.
     for (unsigned entry = 0; entry < 19; ++entry) {
-      switch ((entry + n + run_number) % 19) {
+      const unsigned selected = (entry + n + run_number) % 19;
+      if (roo_only && selected != 0 && selected != 5) continue;
+      switch (selected) {
         case 0:
           run_case<roo_collections::FlatSmallHashMap<Key, uint32_t>>(
               "roo", "default", key_name, hits, misses, order);
@@ -484,31 +488,34 @@ void warm_up_runtime() {
                 before - int(ESP.getFreeHeap()));
 }
 
-void benchmark(bool small_string = false) {
+void benchmark(bool small_string = false, bool roo_only = false) {
   warm_up_runtime();
   ++run_number;
   Serial.printf(
       "BEGIN,%u,chip=%s,revision=%u,cpu_mhz=%u,core=%u,heap=%u,psram=%u,"
-      "compiler=%s,absl=%d.%d,group_width=%u,suite=%s,profile=extended\n",
+      "compiler=%s,absl=%d.%d,group_width=%u,suite=%s,profile=%s\n",
       run_number, ESP.getChipModel(), ESP.getChipRevision(),
       getCpuFrequencyMhz(), xPortGetCoreID(), ESP.getFreeHeap(),
       ESP.getPsramSize(), __VERSION__, ABSL_LTS_RELEASE_VERSION,
       ABSL_LTS_RELEASE_PATCH_LEVEL,
       unsigned(absl::container_internal::Group::kWidth),
-      small_string ? "small_string" : "general");
+      small_string ? "small_string" : "general",
+      roo_only ? "roo_only" : "extended");
   Serial.println(
       "HEADER,run,map,hash,key,n,workload,min_ns,median_ns,max_ns,batches,heap_"
       "bytes,object_bytes");
   const int64_t start = esp_timer_get_time();
   if (small_string) {
-    run_type<roo_collections::SmallString<13>>("small_string12", 12);
-    run_type<roo_collections::SmallString<49>>("small_string48", 48);
+    run_type<hashmap_benchmark::SmallString12Key>("small_string12", 12, false,
+                                                  roo_only);
+    run_type<hashmap_benchmark::SmallString48Key>("small_string48", 48, false,
+                                                  roo_only);
   } else {
-    run_type<uint32_t>("u32_random");
-    run_type<uint32_t>("u32_sequential", 0, true);
-    run_type<uint64_t>("u64_random");
-    run_type<std::string>("string12", 12);
-    run_type<std::string>("string48", 48);
+    run_type<uint32_t>("u32_random", 0, false, roo_only);
+    run_type<uint32_t>("u32_sequential", 0, true, roo_only);
+    run_type<uint64_t>("u64_random", 0, false, roo_only);
+    run_type<std::string>("string12", 12, false, roo_only);
+    run_type<std::string>("string48", 48, false, roo_only);
   }
   Serial.printf("END,%u,elapsed_ms=%lld,sink=%u,heap=%u\n", run_number,
                 (esp_timer_get_time() - start) / 1000, unsigned(sink),
@@ -532,13 +539,16 @@ void setup() {
                    fn);
   });
   Serial.println(
-      "READY,hashmap benchmark; send r for general, s for SmallString");
+      "READY,hashmap benchmark; send r for general, s for SmallString; "
+      "uppercase for Roo only");
 }
 void loop() {
   if (Serial.available()) {
     char command = Serial.read();
     if (command == 'r') benchmark();
     if (command == 's') benchmark(true);
+    if (command == 'R') benchmark(false, true);
+    if (command == 'S') benchmark(true, true);
     if (command == 'd') diagnose_large_copy();
   }
   delay(10);

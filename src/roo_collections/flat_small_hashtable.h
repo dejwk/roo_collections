@@ -397,7 +397,8 @@ class FlatSmallHashtable
     const State fingerprint =
         static_cast<State>(impl::FlatSmallOccupiedState<HashFn>(hash));
     if (states_[pos] == EMPTY && used_ < resize_threshold_) {
-      return insertAt(pos, val, fingerprint);
+      placeAt(pos, val, fingerprint);
+      return {Iterator(this, pos), true};
     }
     if (states_[pos] == fingerprint &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
@@ -426,7 +427,8 @@ class FlatSmallHashtable
       rebuildForInsert();
       return insert(std::move(val));
     }
-    return insertAt(pos, val, fingerprint);
+    placeAt(pos, val, fingerprint);
+    return {Iterator(this, pos), true};
   }
 
  protected:
@@ -545,8 +547,7 @@ class FlatSmallHashtable
   }
 
   /// Places an absent key, distinguishing a recycled tombstone from new use.
-  std::pair<Iterator, bool> insertAt(uint16_t pos, Entry& val,
-                                     State fingerprint) {
+  void placeAt(uint16_t pos, Entry& val, State fingerprint) {
     bool recycled = states_[pos] == DELETED;
     buffer_[pos] = std::move(val);
     states_[pos] = fingerprint;
@@ -556,7 +557,6 @@ class FlatSmallHashtable
     } else {
       ++used_;
     }
-    return std::make_pair(Iterator(this, pos), true);
   }
 
   /// Places a known-unique entry into a fresh table with room for it.
@@ -564,8 +564,8 @@ class FlatSmallHashtable
     const uint32_t hash = hash_fn_(key_fn_(entry));
     internal::FlatSmallHashtableProbe probe(reduceHash(hash), ht_len());
     while (states_[probe.position()] != EMPTY) probe.advance();
-    insertAt(probe.position(), entry,
-             static_cast<State>(impl::FlatSmallOccupiedState<HashFn>(hash)));
+    placeAt(probe.position(), entry,
+            static_cast<State>(impl::FlatSmallOccupiedState<HashFn>(hash)));
   }
 
   /// Lets tombstones occupy about half the spare buckets before compaction.

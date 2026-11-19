@@ -209,6 +209,30 @@ TEST(FlatSmallHashtableChurn, EntryAlignmentAfterCopyAndGrowth) {
   }
 }
 
+struct CountingEqual {
+  unsigned* comparisons;
+
+  bool operator()(int lhs, int rhs) const {
+    ++*comparisons;
+    return lhs == rhs;
+  }
+};
+
+// Verifies compaction reinserts known-unique keys without equality checks.
+TEST(FlatSmallHashtableChurn, CompactionSkipsDuplicateChecks) {
+  unsigned comparisons = 0;
+  FlatSmallHashMap<int, int, ConstantHash, CountingEqual> map(
+      32, ConstantHash{}, CountingEqual{&comparisons});
+  for (int key = 0; key < 16; ++key) map[key] = key * 2;
+  const uint16_t original_slots = map.ht_len();
+  comparisons = 0;
+  map.compact();
+  EXPECT_EQ(comparisons, 0u);
+  EXPECT_LT(map.ht_len(), original_slots);
+  EXPECT_EQ(map.size(), 16u);
+  for (int key = 0; key < 16; ++key) EXPECT_EQ(map.at(key), key * 2);
+}
+
 struct FingerprintHash {
   using is_transparent = void;
   uint32_t value;

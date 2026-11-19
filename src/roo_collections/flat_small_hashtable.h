@@ -381,7 +381,7 @@ class FlatSmallHashtable
     FlatSmallHashtable<Entry, Key, HashFn, KeyFn, KeyCmpFn> newt(
         size(), hash_fn_, key_fn_, key_cmp_fn_);
     for (auto& e : *this) {
-      newt.insert(std::move(e));
+      newt.insertRehashed(e);
     }
     *this = std::move(newt);
   }
@@ -559,6 +559,15 @@ class FlatSmallHashtable
     return std::make_pair(Iterator(this, pos), true);
   }
 
+  /// Places a known-unique entry into a fresh table with room for it.
+  void insertRehashed(Entry& entry) {
+    const uint32_t hash = hash_fn_(key_fn_(entry));
+    internal::FlatSmallHashtableProbe probe(reduceHash(hash), ht_len());
+    while (states_[probe.position()] != EMPTY) probe.advance();
+    insertAt(probe.position(), entry,
+             static_cast<State>(impl::FlatSmallOccupiedState<HashFn>(hash)));
+  }
+
   /// Lets tombstones occupy about half the spare buckets before compaction.
   /// Retaining an empty bucket guarantees that absent-key lookup terminates.
   uint16_t tombstoneLimit() const {
@@ -580,7 +589,7 @@ class FlatSmallHashtable
     FlatSmallHashtable newt(static_cast<uint16_t>(size_hint), hash_fn_, key_fn_,
                             key_cmp_fn_);
     assert(newt.capacity() >= size() + 1);
-    for (auto& entry : *this) newt.insert(std::move(entry));
+    for (auto& entry : *this) newt.insertRehashed(entry);
     if (newt.capacity() == capacity()) {
       // Keep the original arrays to avoid allocator churn when only cleaning.
       used_ = newt.used_;

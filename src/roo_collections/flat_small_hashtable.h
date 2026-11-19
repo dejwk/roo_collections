@@ -10,6 +10,20 @@
 
 namespace roo_collections {
 
+namespace impl {
+
+template <typename Entry>
+struct FlatSmallDirectCopy : std::false_type {};
+
+// std::pair value-initializes both fields in every slot. These pairs can be
+// copy-constructed without first initializing an array and assigning to it.
+template <typename Key, typename Value>
+struct FlatSmallDirectCopy<std::pair<Key, Value>>
+    : std::integral_constant<bool, std::is_trivial<Key>::value &&
+                                       std::is_trivial<Value>::value> {};
+
+}  // namespace impl
+
 /// @brief Flat, memory-conscious hash table optimized for small collections.
 ///
 /// Uses open addressing with quadratic probing and stores entries in contiguous
@@ -505,6 +519,15 @@ class FlatSmallHashtable
     }
 
     void copyEntries(const Entry* source) {
+      copyEntries(source, impl::FlatSmallDirectCopy<Entry>{});
+    }
+
+    void copyEntries(const Entry* source, std::true_type) {
+      std::uninitialized_copy_n(source, slots_, entries_);
+      constructed_ = true;
+    }
+
+    void copyEntries(const Entry* source, std::false_type) {
       constructEntries();
       std::copy_n(source, slots_, entries_);
     }

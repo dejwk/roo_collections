@@ -37,21 +37,21 @@ class FlatSmallHashtableProbe {
 
 /// Finds a matching bucket, or returns capacity. Accepts both signed and
 /// unsigned state bytes, with zero empty and bit 7 marking occupied buckets.
-/// Requires nonzero capacity, first < capacity, and at least one empty bucket.
+/// The fingerprint includes the occupied bit. Requires nonzero capacity,
+/// first < capacity, and at least one empty bucket.
 /// Entry and policy references preserve the caller's const qualification.
 template <typename Entry, typename State, typename Key, typename KeyFn,
           typename KeyCmpFn>
 ROO_COLLECTIONS_CONSTEXPR14 uint32_t FindFlatSmallBucket(
     Entry* entries, const State* states, uint16_t capacity, uint32_t first,
-    uint32_t hash, const Key& key, KeyFn& key_fn, KeyCmpFn& key_cmp_fn) {
+    uint8_t fingerprint, const Key& key, KeyFn& key_fn, KeyCmpFn& key_cmp_fn) {
   // Keep intermediate indices word-sized to avoid narrowing on 32-bit targets.
   uint32_t pos = first;
   int32_t step = 2 - int32_t(capacity);
   while (true) {
     // The high bit excludes empty/tombstone states before accessing an entry.
     // Testing the fingerprint first keeps the common hit path short.
-    if (static_cast<uint8_t>(states[pos]) ==
-            static_cast<uint8_t>(hash | 0x80) &&
+    if (static_cast<uint8_t>(states[pos]) == fingerprint &&
         key_cmp_fn(key_fn(entries[pos]), key)) {
       return pos;
     }

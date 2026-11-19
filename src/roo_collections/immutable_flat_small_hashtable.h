@@ -97,7 +97,8 @@ class ImmutableFlatSmallHashtableData {
         probe.advance();
       }
       CopyImmutableEntry(entries_[probe.position()], entry);
-      states_[probe.position()] = static_cast<int8_t>((hash & 0x7F) | 0x80);
+      states_[probe.position()] =
+          static_cast<int8_t>(FlatSmallOccupiedState<HashFn>(hash));
     }
   }
 
@@ -376,7 +377,8 @@ class ImmutableFlatSmallHashtable
     uint32_t hash = hash_fn_(key);
     uint16_t pos = internal::FindFlatSmallBucket(
         entries_.data(), states_.data(), kSlotCount,
-        Capacity::kValue.reduceHash(hash), hash, key, key_fn_, key_cmp_fn_);
+        Capacity::kValue.reduceHash(hash),
+        impl::FlatSmallOccupiedState<HashFn>(hash), key, key_fn_, key_cmp_fn_);
     return ConstIterator(this, pos);
   }
 

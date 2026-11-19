@@ -15,7 +15,7 @@ static_assert(__cplusplus == ROO_COLLECTIONS_TEST_CXX,
 // Verifies the mixer and default integer hash remain constexpr in C++14+.
 static_assert(roo_collections::Murmur3Fmix32(1) == 0x514e28b7u,
               "constexpr integer mixer");
-static_assert(roo_collections::DefaultHashFn<int>()(1) == 0x514e28b7u,
+static_assert(roo_collections::DefaultHashFn<int>()(1) == 0x9e3779b1u,
               "constexpr default integer hash");
 
 #endif
@@ -63,6 +63,6 @@ int main() {
   if (roo_collections::Murmur3_32(key, 3, 0) != 0xf6a5c420u) return 4;
   if (roo_collections::murmur3_32(key, 3, 0) != 0xf6a5c420u) return 5;
   if (roo_collections::Murmur3Fmix32(1) != 0x514e28b7u) return 6;
-  if (roo_collections::DefaultHashFn<int>()(1) != 0x514e28b7u) return 7;
+  if (roo_collections::DefaultHashFn<int>()(1) != 0x9e3779b1u) return 7;
   return 0;
 }

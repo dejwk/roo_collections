@@ -170,9 +170,9 @@ void VerifyLookupThroughSoleEmptyBucket() {
     SCOPED_TRACE(capacity);
     uint32_t hash = capacity - 1;
     uint32_t first = hash;
-    State fingerprint = static_cast<State>(static_cast<uint8_t>(hash | 0x80));
+    uint8_t fingerprint = static_cast<uint8_t>(hash | 0x80);
     std::vector<uint32_t> entries(capacity);
-    std::vector<State> states(capacity, fingerprint);
+    std::vector<State> states(capacity, static_cast<State>(fingerprint));
     std::vector<uint32_t> expected;
     int64_t half = (capacity - 1) / 2;
     for (uint32_t index = 0; index < capacity; ++index) {
@@ -195,16 +195,16 @@ void VerifyLookupThroughSoleEmptyBucket() {
     std::vector<uint32_t> visited;
     RecordLookupKey key_fn{&visited};
     std::equal_to<uint32_t> equal;
-    EXPECT_EQ(
-        internal::FindFlatSmallBucket(entries.data(), states.data(), capacity,
-                                      first, hash, UINT32_MAX, key_fn, equal),
-        capacity);
+    EXPECT_EQ(internal::FindFlatSmallBucket(entries.data(), states.data(),
+                                            capacity, first, fingerprint,
+                                            UINT32_MAX, key_fn, equal),
+              capacity);
     EXPECT_EQ(visited, expected);
     if (!expected.empty()) {
       visited.clear();
       const uint32_t* const_entries = entries.data();
       EXPECT_EQ(internal::FindFlatSmallBucket(const_entries, states.data(),
-                                              capacity, first, hash,
+                                              capacity, first, fingerprint,
                                               expected.back(), key_fn, equal),
                 expected.back());
       EXPECT_EQ(visited, expected);

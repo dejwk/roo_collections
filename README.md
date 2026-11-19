@@ -13,18 +13,19 @@ which can be used to store small fixed-size strings inline (without using heap).
 
 ## Default hashing
 
-Integral and enum keys use MurmurHash3's `fmix32` finalizer rather than identity
-hashing. Keys up to 32 bits convert to `uint32_t` before mixing; 64-bit keys
-XOR their mixed upper word into the lower word, then mix the result. All result
-bits are the same on 32-bit and 64-bit targets. Hashes intentionally differ from
-`std::hash`, and changing the hash can change iteration order.
+Integral and enum keys up to 32 bits are converted to `uint32_t` and
+multiplied by `0x9e3779b1` with 32-bit wraparound. Tables reduce the full
+product to pick the initial bucket and use its high seven bits as a
+fingerprint to filter key comparisons. Wider integral and enum keys use
+MurmurHash3's `fmix32` to fold the upper word into the lower word and mix
+the result.
 
-`Murmur3Fmix32(uint32_t)` is available in `roo_collections/hash.h`. It and the
-default integral/enum policy are `constexpr` in C++14 and later, and usable at
-runtime in C++11. Mutable, immutable and read-only tables share this policy.
-The finalizer is an unseeded integer mixer; it is not full MurmurHash3 of a
-four-byte buffer. String keys continue to use full MurmurHash3, and other key
-types use `std::hash` unless a custom policy is supplied.
+The integer hash results are the same on 32-bit and 64-bit targets. Changing
+the hash can change iteration order. Mutable, immutable, and read-only tables
+share the policy. Both the default integral and enum hash and the public
+`Murmur3Fmix32(uint32_t)` in `roo_collections/hash.h` are `constexpr` in
+C++14 and later and available at runtime in C++11. String keys use full
+MurmurHash3. Other key types use `std::hash` unless a custom policy is supplied.
 
 Mixing makes lookup less sensitive to structured missing-key ranges, at the
 cost of hash computation and potentially more probes for previously

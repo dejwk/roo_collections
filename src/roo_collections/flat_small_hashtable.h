@@ -266,7 +266,9 @@ class FlatSmallHashtable
     size_t hash = hash_fn_(key);
     const uint16_t pos = reduceHash(hash);
     if (states_[pos] == EMPTY) return false;
-    if (states_[pos] == static_cast<State>((hash & 0x7F) | 0x80) &&
+    const State fingerprint =
+        static_cast<State>(impl::FlatSmallOccupiedState<HashFn>(hash));
+    if (states_[pos] == fingerprint &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       buffer_[pos] = Entry();
       if (used_ == 1 && erased_ == 0) {
@@ -290,8 +292,7 @@ class FlatSmallHashtable
     while (true) {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) return false;
-      if (states_[p] == static_cast<State>((hash & 0x7F) | 0x80) &&
-          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
+      if (states_[p] == fingerprint && key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         states_[p] = DELETED;
         if (p < 8) dummy_empty_state_ &= ~(uint16_t{1} << p);
         buffer_[p] = Entry();
@@ -312,7 +313,9 @@ class FlatSmallHashtable
     size_t hash = hash_fn_(key);
     const uint16_t pos = reduceHash(hash);
     if (states_[pos] == EMPTY) return false;
-    if (states_[pos] == static_cast<State>((hash & 0x7F) | 0x80) &&
+    const State fingerprint =
+        static_cast<State>(impl::FlatSmallOccupiedState<HashFn>(hash));
+    if (states_[pos] == fingerprint &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       states_[pos] = DELETED;
       if (pos < 8) dummy_empty_state_ &= ~(uint16_t{1} << pos);
@@ -327,8 +330,7 @@ class FlatSmallHashtable
     while (true) {
       if (p >= cap) p -= cap;
       if (states_[p] == EMPTY) return false;
-      if (states_[p] == static_cast<State>((hash & 0x7F) | 0x80) &&
-          key_cmp_fn_(key_fn_(buffer_[p]), key)) {
+      if (states_[p] == fingerprint && key_cmp_fn_(key_fn_(buffer_[p]), key)) {
         states_[p] = DELETED;
         if (p < 8) dummy_empty_state_ &= ~(uint16_t{1} << p);
         buffer_[p] = Entry();
@@ -385,10 +387,12 @@ class FlatSmallHashtable
     const Key& key = key_fn_(val);
     uint32_t hash = hash_fn_(key);
     uint16_t pos = reduceHash(hash);
+    const State fingerprint =
+        static_cast<State>(impl::FlatSmallOccupiedState<HashFn>(hash));
     if (states_[pos] == EMPTY && used_ < resize_threshold_) {
-      return insertAt(pos, val, hash);
+      return insertAt(pos, val, fingerprint);
     }
-    if (states_[pos] == static_cast<State>((hash & 0x7F) | 0x80) &&
+    if (states_[pos] == fingerprint &&
         key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
       return std::make_pair(Iterator(this, pos), false);
     }
@@ -401,7 +405,7 @@ class FlatSmallHashtable
       if (states_[pos] == EMPTY) break;
       if (states_[pos] == DELETED) {
         if (deleted == cap) deleted = pos;
-      } else if ((states_[pos] & 0x7F) == (hash & 0x7F) &&
+      } else if (states_[pos] == fingerprint &&
                  key_cmp_fn_(key_fn_(buffer_[pos]), key)) {
         return std::make_pair(Iterator(this, pos), false);
       }
@@ -415,15 +419,15 @@ class FlatSmallHashtable
       rebuildForInsert();
       return insert(std::move(val));
     }
-    return insertAt(pos, val, hash);
+    return insertAt(pos, val, fingerprint);
   }
 
  protected:
   Iterator lookup(const Key& key) {
     uint32_t hash = hash_fn_(key);
-    uint32_t pos = internal::FindFlatSmallBucket(buffer_, states_, ht_len(),
-                                                 reduceHash(hash), hash, key,
-                                                 key_fn_, key_cmp_fn_);
+    uint32_t pos = internal::FindFlatSmallBucket(
+        buffer_, states_, ht_len(), reduceHash(hash),
+        impl::FlatSmallOccupiedState<HashFn>(hash), key, key_fn_, key_cmp_fn_);
     return Iterator(this, pos);
   }
 
@@ -431,18 +435,19 @@ class FlatSmallHashtable
             typename = has_is_transparent_t<KeyCmpFn, K>>
   Iterator lookup(const K& key) {
     uint32_t hash = hash_fn_(key);
-    uint32_t pos = internal::FindFlatSmallBucket(buffer_, states_, ht_len(),
-                                                 reduceHash(hash), hash, key,
-                                                 key_fn_, key_cmp_fn_);
+    uint32_t pos = internal::FindFlatSmallBucket(
+        buffer_, states_, ht_len(), reduceHash(hash),
+        impl::FlatSmallOccupiedState<HashFn>(hash), key, key_fn_, key_cmp_fn_);
     return Iterator(this, pos);
   }
 
  private:
   /// Places an absent key, distinguishing a recycled tombstone from new use.
-  std::pair<Iterator, bool> insertAt(uint16_t pos, Entry& val, uint32_t hash) {
+  std::pair<Iterator, bool> insertAt(uint16_t pos, Entry& val,
+                                     State fingerprint) {
     bool recycled = states_[pos] == DELETED;
     buffer_[pos] = std::move(val);
-    states_[pos] = (hash & 0x7F) | 0x80;
+    states_[pos] = fingerprint;
     if (pos < 8) dummy_empty_state_ |= uint16_t{1} << pos;
     if (recycled) {
       --erased_;

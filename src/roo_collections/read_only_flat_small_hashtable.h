@@ -150,7 +150,7 @@ class ReadOnlyFlatSmallHashtable
     uint32_t hash = hash_fn_(key);
     uint32_t pos = internal::FindFlatSmallBucket(
         static_cast<const Entry*>(buffer_), states_, ht_len(), reduceHash(hash),
-        hash, key, key_fn_, key_cmp_fn_);
+        impl::FlatSmallOccupiedState<HashFn>(hash), key, key_fn_, key_cmp_fn_);
     return ConstIterator(this, pos);
   }
 
@@ -162,7 +162,7 @@ class ReadOnlyFlatSmallHashtable
     uint32_t hash = hash_fn_(key);
     uint32_t pos = internal::FindFlatSmallBucket(
         static_cast<const Entry*>(buffer_), states_, ht_len(), reduceHash(hash),
-        hash, key, key_fn_, key_cmp_fn_);
+        impl::FlatSmallOccupiedState<HashFn>(hash), key, key_fn_, key_cmp_fn_);
     return ConstIterator(this, pos);
   }
 
@@ -219,7 +219,7 @@ class ReadOnlyFlatSmallHashtable
   using State = int8_t;
   static constexpr State EMPTY = 0;
   static constexpr State DELETED = 1;
-  // Occupied states use 0x80 | (hash & 0x7F).
+  // Occupied states combine the high bit with a seven-bit fingerprint.
 
   /// Copies policies; concrete owners bind storage before publishing it.
   constexpr ReadOnlyFlatSmallHashtable(const HashFn& hash_fn,

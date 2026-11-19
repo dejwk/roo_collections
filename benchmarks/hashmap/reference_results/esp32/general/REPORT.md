@@ -17,29 +17,29 @@ Ratios below are geometric means, with equal weight for every key/size case with
 
 | Container | Hit | Miss | Iteration | Erase + insert |
 |---|---:|---:|---:|---:|
-| absl_flat | 2.455x | 2.666x | 1.271x | 2.314x |
-| std_unordered | 1.065x | 1.162x | 0.196x | 8.685x |
-| absl_node | 2.523x | 2.723x | 1.284x | 8.708x |
-| std_map | 1.824x | 1.943x | 1.540x | 7.837x |
-| tsl_robin | 0.833x | 0.713x | 1.125x | 0.715x |
-| unordered_dense | 3.539x | 3.580x | 0.196x | 2.734x |
-| etl | 0.888x | 0.899x | 0.753x | 0.814x |
-| boost_flat | 1.472x | 1.253x | 1.055x | 1.234x |
-| emhash5 | 0.684x | 0.611x | 0.753x | 0.571x |
+| absl_flat | 2.775x | 2.987x | 1.270x | 2.444x |
+| std_unordered | 1.203x | 1.302x | 0.196x | 9.172x |
+| absl_node | 2.851x | 3.052x | 1.283x | 9.196x |
+| std_map | 2.061x | 2.178x | 1.539x | 8.276x |
+| tsl_robin | 0.941x | 0.799x | 1.124x | 0.755x |
+| unordered_dense | 3.999x | 4.012x | 0.196x | 2.888x |
+| etl | 1.003x | 1.008x | 0.752x | 0.859x |
+| boost_flat | 1.664x | 1.404x | 1.055x | 1.303x |
+| emhash5 | 0.773x | 0.684x | 0.753x | 0.603x |
 
 ## absl_hash: competitor / current Roo
 
 | Container | Hit | Miss | Iteration | Erase + insert |
 |---|---:|---:|---:|---:|
-| absl_flat | 2.113x | 2.184x | 1.198x | 2.157x |
-| std_unordered | 1.505x | 1.493x | 0.180x | 8.642x |
-| absl_node | 2.155x | 2.202x | 1.197x | 7.388x |
-| std_map | 1.589x | 1.610x | 1.417x | 7.412x |
-| tsl_robin | 1.061x | 0.948x | 1.036x | 0.818x |
-| unordered_dense | 3.122x | 2.992x | 0.181x | 3.650x |
-| etl | 1.010x | 0.971x | 0.680x | 0.985x |
-| boost_flat | 1.605x | 1.428x | 0.999x | 1.334x |
-| emhash5 | 0.853x | 0.756x | 0.697x | 0.690x |
+| absl_flat | 2.105x | 2.188x | 1.187x | 2.174x |
+| std_unordered | 1.500x | 1.495x | 0.179x | 8.708x |
+| absl_node | 2.147x | 2.206x | 1.186x | 7.444x |
+| std_map | 1.583x | 1.613x | 1.404x | 7.468x |
+| tsl_robin | 1.057x | 0.950x | 1.027x | 0.824x |
+| unordered_dense | 3.111x | 2.997x | 0.179x | 3.678x |
+| etl | 1.006x | 0.973x | 0.673x | 0.993x |
+| boost_flat | 1.599x | 1.431x | 0.990x | 1.344x |
+| emhash5 | 0.850x | 0.757x | 0.691x | 0.695x |
 
 ## Roo before / after speedup
 
@@ -47,13 +47,13 @@ Above 1 means the new capture is faster; unchanged competitors were not remeasur
 
 | Key | Hash | Hit | Miss | Iteration | Copy | Erase + insert | Build | Presized build | Cache cycle |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| u32_random | default | 1.381x | 1.151x | 1.000x | 1.000x | 1.050x | 1.049x | 1.062x | — |
-| u32_random | absl_hash | 1.415x | 1.185x | 1.029x | 0.999x | 1.059x | 1.051x | 1.053x | — |
-| u32_sequential | default | 1.382x | 1.151x | 1.000x | 1.000x | 1.048x | 1.048x | 1.064x | — |
-| u32_sequential | absl_hash | 1.421x | 1.263x | 1.029x | 0.999x | 1.067x | 1.049x | 1.037x | — |
-| u64_random | default | 1.504x | 1.085x | 1.000x | 1.020x | 1.068x | 1.041x | 1.050x | — |
-| u64_random | absl_hash | 1.479x | 1.131x | 0.998x | 1.018x | 1.079x | 1.034x | 1.039x | — |
-| string12 | default | 1.027x | 1.033x | 1.029x | 1.017x | 1.040x | 1.022x | 1.028x | 1.173x |
-| string12 | absl_hash | 1.096x | 1.033x | 0.793x | 1.032x | 1.029x | 1.013x | 1.013x | 1.049x |
-| string48 | default | 1.013x | 1.014x | 1.029x | 1.001x | 1.006x | 1.003x | 1.002x | 1.036x |
-| string48 | absl_hash | 1.033x | 1.010x | 0.794x | 1.002x | 1.004x | 1.001x | 1.000x | 1.017x |
+| u32_random | default | 1.776x | 1.469x | 0.998x | 1.000x | 1.141x | 1.083x | 1.094x | — |
+| u32_random | absl_hash | 1.415x | 1.185x | 1.027x | 0.999x | 1.072x | 1.048x | 1.048x | — |
+| u32_sequential | default | 1.874x | 1.512x | 0.999x | 1.000x | 1.227x | 1.133x | 1.205x | — |
+| u32_sequential | absl_hash | 1.421x | 1.263x | 1.027x | 0.999x | 1.080x | 1.046x | 1.032x | — |
+| u64_random | default | 1.504x | 1.085x | 1.000x | 1.021x | 1.074x | 1.043x | 1.052x | — |
+| u64_random | absl_hash | 1.479x | 1.131x | 0.996x | 1.019x | 1.087x | 1.036x | 1.041x | — |
+| string12 | default | 1.027x | 1.033x | 1.029x | 1.006x | 1.044x | 0.994x | 1.029x | 1.172x |
+| string12 | absl_hash | 1.079x | 1.041x | 0.776x | 1.033x | 1.033x | 0.969x | 1.023x | 1.047x |
+| string48 | default | 1.013x | 1.014x | 1.029x | 1.001x | 1.006x | 0.996x | 1.002x | 1.035x |
+| string48 | absl_hash | 1.028x | 1.013x | 0.777x | 1.001x | 1.005x | 0.991x | 1.002x | 1.015x |

@@ -156,29 +156,55 @@ inline uint16_t initialCapacityHint(InputIt first, InputIt last) {
       first, last, typename std::iterator_traits<InputIt>::iterator_category());
 }
 
-/// Default hash policy; integral and enum keys use Murmur3's fmix32 mixer.
-/// Integral and enum keys support constant evaluation in C++14+.
+namespace impl {
+
+template <typename Key>
+using EnableIntegralHash =
+    typename std::enable_if<std::is_integral<Key>::value ||
+                            std::is_enum<Key>::value>::type;
+
+}  // namespace impl
+
+/// Default hash policy; integral and enum keys use a 32-bit integer hash.
 template <typename Key, typename Enable = void>
 struct DefaultHashFn : public std::hash<Key> {};
 
-/// Mixes integral and enum keys into a 32-bit hash, independent of size_t
-/// width. Keys up to 32 bits convert to uint32_t before mixing. For wider keys,
-/// the mixed upper 32 bits are XORed into the lower word before final mixing.
-/// These hashes intentionally differ from std::hash.
+/// Hashes integral and enum keys consistently across size_t widths.
+/// Keys up to 32 bits use a wrapping multiply. Wider keys use fmix32 to mix
+/// both words. Supports constant evaluation in C++14 and later.
 template <typename Key>
-struct DefaultHashFn<Key,
-                     typename std::enable_if<std::is_integral<Key>::value ||
-                                             std::is_enum<Key>::value>::type> {
-  /// Mixes @p key, including the upper word of 64-bit integral/enum keys.
+struct DefaultHashFn<Key, impl::EnableIntegralHash<Key>> {
+  /// Hashes @p key after converting its low word to uint32_t.
   ROO_COLLECTIONS_CONSTEXPR14 size_t operator()(Key key) const noexcept {
-    uint32_t value = static_cast<uint32_t>(key);
-    if (sizeof(Key) > sizeof(uint32_t)) {
-      value ^= Murmur3Fmix32(
-          static_cast<uint32_t>(static_cast<uint64_t>(key) >> 32));
+    const uint32_t low = static_cast<uint32_t>(key);
+    if (sizeof(Key) <= sizeof(uint32_t)) {
+      return static_cast<uint32_t>(low * UINT32_C(0x9e3779b1));
     }
-    return Murmur3Fmix32(value);
+    const uint32_t high =
+        static_cast<uint32_t>(static_cast<uint64_t>(key) >> 32);
+    return Murmur3Fmix32(low ^ Murmur3Fmix32(high));
   }
 };
+
+namespace impl {
+
+template <typename HashFn>
+struct FlatSmallFingerprintShift : std::integral_constant<unsigned, 0> {};
+
+template <typename Key>
+struct FlatSmallFingerprintShift<DefaultHashFn<Key, EnableIntegralHash<Key>>>
+    : std::integral_constant<unsigned,
+                             sizeof(Key) <= sizeof(uint32_t) ? 25 : 0> {};
+
+/// Encodes the occupied bucket state. Multiplication preserves aligned low
+/// bits, so its fingerprint uses the high seven bits of the product.
+template <typename HashFn>
+constexpr uint8_t FlatSmallOccupiedState(uint32_t hash) {
+  return static_cast<uint8_t>(
+      ((hash >> FlatSmallFingerprintShift<HashFn>::value) & 0x7F) | 0x80);
+}
+
+}  // namespace impl
 
 template <>
 struct DefaultHashFn<::roo::string_view> {

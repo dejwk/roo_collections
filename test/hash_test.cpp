@@ -75,30 +75,45 @@ TEST(Hash, Fmix32KnownVectors) {
   }
 }
 
-// Verifies the default policy mixes all supported integer widths and enums,
-// preserves upper-word influence, and works during constant evaluation.
-TEST(Hash, DefaultIntegralAndEnumHashUsesFmix32) {
+// Verifies the default policy uses multiplication for narrow keys,
+// mixes both words of wide keys, and works during constant evaluation.
+TEST(Hash, DefaultIntegralAndEnumHash) {
   enum class Small : int8_t { kNegative = -1, kOne = 1 };
   enum class Wide : uint64_t { kUpper = uint64_t{1} << 32 };
-  static_assert(DefaultHashFn<int>()(1) == 0x514e28b7u, "default is mixed");
-  static_assert(DefaultHashFn<Small>()(Small::kNegative) == 0x81f16f39u,
+  static_assert(DefaultHashFn<int>()(1) == 0x9e3779b1u, "default is mixed");
+  static_assert(DefaultHashFn<Small>()(Small::kNegative) == 0x61c8864fu,
                 "signed enum conversion");
   static_assert(DefaultHashFn<Wide>()(Wide::kUpper) == 0x2fef5c8fu,
                 "wide enum includes its upper word");
   EXPECT_EQ(DefaultHashFn<bool>()(false), 0u);
-  EXPECT_EQ(DefaultHashFn<bool>()(true), 0x514e28b7u);
-  EXPECT_EQ(DefaultHashFn<int8_t>()(-1), 0x81f16f39u);
-  EXPECT_EQ(DefaultHashFn<uint8_t>()(1), 0x514e28b7u);
-  EXPECT_EQ(DefaultHashFn<int16_t>()(-1), 0x81f16f39u);
-  EXPECT_EQ(DefaultHashFn<uint16_t>()(1), 0x514e28b7u);
-  EXPECT_EQ(DefaultHashFn<int32_t>()(-1), 0x81f16f39u);
-  EXPECT_EQ(DefaultHashFn<uint32_t>()(0x80000000u), 0x6d3c65a0u);
+  EXPECT_EQ(DefaultHashFn<bool>()(true), 0x9e3779b1u);
+  EXPECT_EQ(DefaultHashFn<int8_t>()(-1), 0x61c8864fu);
+  EXPECT_EQ(DefaultHashFn<uint8_t>()(1), 0x9e3779b1u);
+  EXPECT_EQ(DefaultHashFn<int16_t>()(-1), 0x61c8864fu);
+  EXPECT_EQ(DefaultHashFn<uint16_t>()(1), 0x9e3779b1u);
+  EXPECT_EQ(DefaultHashFn<int32_t>()(-1), 0x61c8864fu);
+  EXPECT_EQ(DefaultHashFn<uint32_t>()(0x80000000u), 0x80000000u);
   EXPECT_EQ(DefaultHashFn<uint64_t>()(uint64_t{1} << 32), 0x2fef5c8fu);
   EXPECT_EQ(DefaultHashFn<uint64_t>()(0x100000001ULL), 0x3d8ed02fu);
   EXPECT_EQ(DefaultHashFn<uint64_t>()(0x123456789abcdef0ULL), 0xf7b45ce0u);
   EXPECT_EQ(DefaultHashFn<int64_t>()(-1), 0xce2d4699u);
-  EXPECT_EQ(DefaultHashFn<Small>()(Small::kOne), 0x514e28b7u);
+  EXPECT_EQ(DefaultHashFn<Small>()(Small::kOne), 0x9e3779b1u);
   EXPECT_EQ(DefaultHashFn<Wide>()(Wide::kUpper), 0x2fef5c8fu);
+}
+
+// Verifies high-bit fingerprints distinguish aligned keys under the default
+// narrow-integer policy while the wide and custom policies use low bits.
+TEST(Hash, IntegerMultiplyFingerprintUsesHighBits) {
+  const uint32_t first = DefaultHashFn<uint32_t>()(4096);
+  const uint32_t second = DefaultHashFn<uint32_t>()(8192);
+  EXPECT_EQ(first & 0x7F, second & 0x7F);
+  EXPECT_EQ(impl::FlatSmallOccupiedState<DefaultHashFn<uint32_t>>(first),
+            (first >> 25) | 0x80u);
+  EXPECT_NE(impl::FlatSmallOccupiedState<DefaultHashFn<uint32_t>>(first),
+            impl::FlatSmallOccupiedState<DefaultHashFn<uint32_t>>(second));
+  EXPECT_EQ(impl::FlatSmallOccupiedState<DefaultHashFn<uint64_t>>(first),
+            0x80u);
+  EXPECT_EQ(impl::FlatSmallOccupiedState<std::hash<uint32_t>>(first), 0x80u);
 }
 
 // Verifies constexpr construction and concrete/base runtime lookup agree with

@@ -170,8 +170,9 @@ template <typename Key, typename Enable = void>
 struct DefaultHashFn : public std::hash<Key> {};
 
 /// Hashes integral and enum keys consistently across size_t widths.
-/// Keys up to 32 bits use a wrapping multiply. Wider keys use fmix32 to mix
-/// both words. Supports constant evaluation in C++14 and later.
+/// Keys up to 32 bits use a wrapping multiply. Wider keys multiply each word by
+/// a different constant and add the products. Supports constant evaluation in
+/// C++14 and later.
 template <typename Key>
 struct DefaultHashFn<Key, impl::EnableIntegralHash<Key>> {
   /// Hashes @p key after converting its low word to uint32_t.
@@ -182,7 +183,8 @@ struct DefaultHashFn<Key, impl::EnableIntegralHash<Key>> {
     }
     const uint32_t high =
         static_cast<uint32_t>(static_cast<uint64_t>(key) >> 32);
-    return Murmur3Fmix32(low ^ Murmur3Fmix32(high));
+    return static_cast<uint32_t>(low * UINT32_C(0x9e3779b1) +
+                                 high * UINT32_C(0x85ebca6b));
   }
 };
 
@@ -193,8 +195,7 @@ struct FlatSmallFingerprintShift : std::integral_constant<unsigned, 0> {};
 
 template <typename Key>
 struct FlatSmallFingerprintShift<DefaultHashFn<Key, EnableIntegralHash<Key>>>
-    : std::integral_constant<unsigned,
-                             sizeof(Key) <= sizeof(uint32_t) ? 25 : 0> {};
+    : std::integral_constant<unsigned, 25> {};
 
 /// Encodes the occupied bucket state. Multiplication preserves aligned low
 /// bits, so its fingerprint uses the high seven bits of the product.

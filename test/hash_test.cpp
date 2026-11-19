@@ -76,14 +76,15 @@ TEST(Hash, Fmix32KnownVectors) {
 }
 
 // Verifies the default policy uses multiplication for narrow keys,
-// mixes both words of wide keys, and works during constant evaluation.
+// combines products of both wide-key words, and works during constant
+// evaluation.
 TEST(Hash, DefaultIntegralAndEnumHash) {
   enum class Small : int8_t { kNegative = -1, kOne = 1 };
   enum class Wide : uint64_t { kUpper = uint64_t{1} << 32 };
   static_assert(DefaultHashFn<int>()(1) == 0x9e3779b1u, "default is mixed");
   static_assert(DefaultHashFn<Small>()(Small::kNegative) == 0x61c8864fu,
                 "signed enum conversion");
-  static_assert(DefaultHashFn<Wide>()(Wide::kUpper) == 0x2fef5c8fu,
+  static_assert(DefaultHashFn<Wide>()(Wide::kUpper) == 0x85ebca6bu,
                 "wide enum includes its upper word");
   EXPECT_EQ(DefaultHashFn<bool>()(false), 0u);
   EXPECT_EQ(DefaultHashFn<bool>()(true), 0x9e3779b1u);
@@ -93,16 +94,16 @@ TEST(Hash, DefaultIntegralAndEnumHash) {
   EXPECT_EQ(DefaultHashFn<uint16_t>()(1), 0x9e3779b1u);
   EXPECT_EQ(DefaultHashFn<int32_t>()(-1), 0x61c8864fu);
   EXPECT_EQ(DefaultHashFn<uint32_t>()(0x80000000u), 0x80000000u);
-  EXPECT_EQ(DefaultHashFn<uint64_t>()(uint64_t{1} << 32), 0x2fef5c8fu);
-  EXPECT_EQ(DefaultHashFn<uint64_t>()(0x100000001ULL), 0x3d8ed02fu);
-  EXPECT_EQ(DefaultHashFn<uint64_t>()(0x123456789abcdef0ULL), 0xf7b45ce0u);
-  EXPECT_EQ(DefaultHashFn<int64_t>()(-1), 0xce2d4699u);
+  EXPECT_EQ(DefaultHashFn<uint64_t>()(uint64_t{1} << 32), 0x85ebca6bu);
+  EXPECT_EQ(DefaultHashFn<uint64_t>()(0x100000001ULL), 0x2423441cu);
+  EXPECT_EQ(DefaultHashFn<uint64_t>()(0x123456789abcdef0ULL), 0xe7c86818u);
+  EXPECT_EQ(DefaultHashFn<int64_t>()(-1), 0xdbdcbbe4u);
   EXPECT_EQ(DefaultHashFn<Small>()(Small::kOne), 0x9e3779b1u);
-  EXPECT_EQ(DefaultHashFn<Wide>()(Wide::kUpper), 0x2fef5c8fu);
+  EXPECT_EQ(DefaultHashFn<Wide>()(Wide::kUpper), 0x85ebca6bu);
 }
 
 // Verifies high-bit fingerprints distinguish aligned keys under the default
-// narrow-integer policy while the wide and custom policies use low bits.
+// integer policy while explicit custom hashes use the low bits.
 TEST(Hash, IntegerMultiplyFingerprintUsesHighBits) {
   const uint32_t first = DefaultHashFn<uint32_t>()(4096);
   const uint32_t second = DefaultHashFn<uint32_t>()(8192);
@@ -111,8 +112,9 @@ TEST(Hash, IntegerMultiplyFingerprintUsesHighBits) {
             (first >> 25) | 0x80u);
   EXPECT_NE(impl::FlatSmallOccupiedState<DefaultHashFn<uint32_t>>(first),
             impl::FlatSmallOccupiedState<DefaultHashFn<uint32_t>>(second));
-  EXPECT_EQ(impl::FlatSmallOccupiedState<DefaultHashFn<uint64_t>>(first),
-            0x80u);
+  const uint32_t wide = DefaultHashFn<uint64_t>()(uint64_t{4096} << 32);
+  EXPECT_EQ(impl::FlatSmallOccupiedState<DefaultHashFn<uint64_t>>(wide),
+            (wide >> 25) | 0x80u);
   EXPECT_EQ(impl::FlatSmallOccupiedState<std::hash<uint32_t>>(first), 0x80u);
 }
 

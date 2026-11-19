@@ -183,6 +183,32 @@ TEST(FlatSmallHashtableChurn, IterationAcrossInPlaceMutations) {
   EXPECT_EQ(typename decltype(map)::const_iterator(),
             typename decltype(map)::const_iterator());
 }
+struct alignas(64) AlignedValue {
+  uint32_t value = 0;
+};
+
+// Verifies combined storage keeps wide alignment through growth, copy,
+// assignment, and a move to and from the empty sentinel.
+TEST(FlatSmallHashtableChurn, EntryAlignmentAfterCopyAndGrowth) {
+  using Map = FlatSmallHashMap<uint32_t, AlignedValue>;
+  Map filled;
+  for (uint32_t key = 0; key < 80; ++key) filled[key].value = key + 1;
+
+  Map copy(filled);
+  Map assigned(0);
+  assigned = copy;
+  Map moved(std::move(assigned));
+  EXPECT_TRUE(assigned.empty());
+  for (const Map* map : {&filled, &copy, &moved}) {
+    ASSERT_EQ(map->size(), 80);
+    for (uint32_t key = 0; key < 80; ++key) {
+      const auto& value = map->at(key);
+      EXPECT_EQ(value.value, key + 1);
+      EXPECT_EQ(reinterpret_cast<uintptr_t>(&value) % alignof(AlignedValue), 0);
+    }
+  }
+}
+
 struct FingerprintHash {
   using is_transparent = void;
   uint32_t value;

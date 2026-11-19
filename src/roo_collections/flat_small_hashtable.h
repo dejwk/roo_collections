@@ -4,6 +4,8 @@
 /// @brief Flat, memory-conscious hash table implementation.
 /// @ingroup roo_collections
 
+#include <new>
+
 #include "roo_collections/read_only_flat_small_hashtable.h"
 
 namespace roo_collections {
@@ -142,9 +144,9 @@ class FlatSmallHashtable
     reciprocal_ = capacity.reciprocal;
     slot_count_ = capacity.slot_count;
     resize_threshold_ = capacity.mutableCapacity();
-    buffer_ = ht_len() > 1 ? new Entry[ht_len()] : nullptr;
-    states_ = ht_len() > 1 ? new State[ht_len()] : &dummy_empty_state_;
-    std::fill(&states_[0], &states_[ht_len()], State(EMPTY));
+    Storage storage(ht_len());
+    storage.initialize();
+    adopt(storage);
   }
 
   /// @brief Move constructor.
@@ -171,25 +173,19 @@ class FlatSmallHashtable
     used_ = other.used_;
     erased_ = other.erased_;
     resize_threshold_ = other.resize_threshold_;
-    buffer_ = ht_len() > 1 ? new Entry[ht_len()] : nullptr;
-    states_ = ht_len() > 1 ? new State[ht_len()] : &dummy_empty_state_;
-    if (other.buffer_ != nullptr) {
-      std::copy(&other.buffer_[0], &other.buffer_[ht_len()], buffer_);
-    }
-    std::copy(&other.states_[0], &other.states_[ht_len()], states_);
+    Storage storage(ht_len());
+    storage.copy(other);
+    adopt(storage);
   }
 
   /// @brief Destructor.
-  ~FlatSmallHashtable() {
-    if (ht_len() > 1) delete[] states_;
-    delete[] buffer_;
-  }
+  ~FlatSmallHashtable() { Storage::destroy(buffer_, ht_len()); }
 
   /// @brief Move assignment.
   FlatSmallHashtable& operator=(FlatSmallHashtable&& other) {
     if (this != &other) {
-      if (ht_len() > 1) delete[] states_;
-      delete[] buffer_;
+      Storage::destroy(buffer_, ht_len());
+      resetToEmptySentinel();
       hash_fn_ = std::move(other.hash_fn_);
       key_fn_ = std::move(other.key_fn_);
       key_cmp_fn_ = std::move(other.key_cmp_fn_);
@@ -209,23 +205,20 @@ class FlatSmallHashtable
   /// @brief Copy assignment.
   FlatSmallHashtable& operator=(const FlatSmallHashtable& other) {
     if (this != &other) {
-      if (ht_len() > 1) delete[] states_;
-      delete[] buffer_;
+      Storage::destroy(buffer_, ht_len());
+      resetToEmptySentinel();
       hash_fn_ = other.hash_fn_;
       key_fn_ = other.key_fn_;
       key_cmp_fn_ = other.key_cmp_fn_;
+      Storage storage(other.ht_len());
+      storage.copy(other);
       dummy_empty_state_ = other.dummy_empty_state_;
       reciprocal_ = other.reciprocal_;
       slot_count_ = other.slot_count_;
       used_ = other.used_;
       erased_ = other.erased_;
       resize_threshold_ = other.resize_threshold_;
-      buffer_ = ht_len() > 1 ? new Entry[ht_len()] : nullptr;
-      states_ = ht_len() > 1 ? new State[ht_len()] : &dummy_empty_state_;
-      if (other.buffer_ != nullptr) {
-        std::copy(&other.buffer_[0], &other.buffer_[ht_len()], &buffer_[0]);
-      }
-      std::copy(&other.states_[0], &other.states_[ht_len()], &states_[0]);
+      adopt(storage);
     }
     return *this;
   }
@@ -442,6 +435,92 @@ class FlatSmallHashtable
   }
 
  private:
+  /// Owns the entries and their trailing state bytes during construction.
+  class Storage {
+   public:
+    explicit Storage(uint16_t slots)
+        : slots_(slots),
+          entries_(slots > 1 ? std::allocator<Entry>{}.allocate(
+                                   allocationCount(slots))
+                             : nullptr) {}
+
+    ~Storage() {
+      if (entries_ != nullptr) {
+        if (constructed_) destroyEntries(entries_, slots_);
+        std::allocator<Entry>{}.deallocate(entries_, allocationCount(slots_));
+      }
+    }
+
+    /// Starts the entry and state arrays and clears the state bytes.
+    void initialize() {
+      if (entries_ == nullptr) return;
+      constructEntries();
+      auto states = ::new (static_cast<void*>(stateArray(entries_, slots_)))
+          State[slots_];
+      std::fill_n(states, slots_, State(EMPTY));
+    }
+
+    /// Copies the existing bucket layout, including any tombstones.
+    void copy(const FlatSmallHashtable& other) {
+      if (entries_ == nullptr) return;
+      copyEntries(other.buffer_);
+      auto states = ::new (static_cast<void*>(stateArray(entries_, slots_)))
+          State[slots_];
+      std::copy_n(other.states_, slots_, states);
+    }
+
+    /// Transfers ownership to a fully initialized table.
+    Entry* release() {
+      Entry* entries = entries_;
+      entries_ = nullptr;
+      return entries;
+    }
+
+    /// Locates the control bytes after the aligned entry array.
+    static State* stateArray(Entry* entries, uint16_t slots) {
+      return reinterpret_cast<State*>(entries + slots);
+    }
+
+    /// Releases a table's fully initialized storage.
+    static void destroy(Entry* entries, uint16_t slots) {
+      if (entries == nullptr) return;
+      destroyEntries(entries, slots);
+      std::allocator<Entry>{}.deallocate(entries, allocationCount(slots));
+    }
+
+   private:
+    /// Rounds trailing state bytes up to the allocator's entry units.
+    static size_t allocationCount(uint16_t slots) {
+      return slots +
+             (slots * sizeof(State) + sizeof(Entry) - 1) / sizeof(Entry);
+    }
+
+    static void destroyEntries(Entry* entries, uint16_t slots) {
+      for (uint16_t i = slots; i > 0; --i) entries[i - 1].~Entry();
+    }
+
+    void constructEntries() {
+      ::new (static_cast<void*>(entries_)) Entry[slots_];
+      constructed_ = true;
+    }
+
+    void copyEntries(const Entry* source) {
+      constructEntries();
+      std::copy_n(source, slots_, entries_);
+    }
+
+    uint16_t slots_;
+    Entry* entries_;
+    bool constructed_ = false;
+  };
+
+  /// Transfers initialized storage and handles the empty-table sentinel.
+  void adopt(Storage& storage) {
+    buffer_ = storage.release();
+    states_ = buffer_ == nullptr ? &dummy_empty_state_
+                                 : Storage::stateArray(buffer_, ht_len());
+  }
+
   /// Places an absent key, distinguishing a recycled tombstone from new use.
   std::pair<Iterator, bool> insertAt(uint16_t pos, Entry& val,
                                      State fingerprint) {

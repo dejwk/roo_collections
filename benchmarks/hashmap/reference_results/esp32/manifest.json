@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "snapshot": "esp32-extended-roo-integer-refresh-2026-11-19",
-  "implementation": "0f296ec baseline with 32-bit multiplicative integer hashing and high-seven-bit fingerprints",
+  "snapshot": "esp32-extended-roo-wide-storage-2026-11-20",
+  "implementation": "Wide integer multiply hash, combined allocation, direct pair copy, and direct rehash placement",
   "map_profile": "extended",
   "maps": {
     "roo": "Roo",
@@ -244,12 +244,12 @@
         ]
       },
       "previous_roo_capture": {
-        "recorded_at": "2026-11-19T20:03:22.081079+00:00",
-        "firmware_sha256": "f4fc6ee544987b8a2e0b4b82d4f8a8eaf533c3424f0a658481fdff09e6cd4644",
-        "archive_sha256": "084907d727ea01aaa6529594065a91aba18c3279112ee1f0ac8823a6b370bb36"
+        "recorded_at": "2026-11-19T22:43:07.118819+00:00",
+        "firmware_sha256": "6094c5bbe1d0d75775ae29c317dc17aac33b18d679252f7cacbfca5aba3ffd24",
+        "archive_sha256": "9dae1f8a8a76fcc587e8a8d08a0e3274513c1eeace3a48f59b33b012ebad372b"
       },
       "roo_refresh": {
-        "recorded_at": "2026-11-19T22:43:07.118819+00:00",
+        "recorded_at": "2026-11-20T00:41:41.735615+01:00",
         "board": "ESP32-D0WD-V3 (revision v3.1), COM18",
         "device_mac": "ec:64:c9:7c:f4:34",
         "cases": 1234,
@@ -257,10 +257,13 @@
         "observations_per_case": 3,
         "timed_samples_per_observation": 7,
         "excluded_records": 0,
-        "library_commit": "0f296ece86878836bcae33b73fbcbe085285bde2",
-        "firmware_sha256": "6094c5bbe1d0d75775ae29c317dc17aac33b18d679252f7cacbfca5aba3ffd24",
-        "firmware_bytes": 1421856,
+        "library_commit": "f99f4b4dda809f0fb0cdef3991c936417ccffbeb",
+        "firmware_sha256": "a85137c1a62d91d984af1b5e6d012c6f7131781e8c7ff1dc97063a9caa21350a",
+        "firmware_bytes": 1423168,
         "default_narrow_integer_hash": "multiply_0x9e3779b1_high_7_fingerprint",
+        "default_wide_integer_hash": "sum_of_two_32_bit_products_high_7_fingerprint",
+        "mutable_storage": "coallocated_entries_and_states_with_direct_pair_copy",
+        "mutable_rehash": "direct_placement_with_separate_iterator_construction",
         "small_string_layout": "length_tail_no_terminator",
         "small_string_key_bytes": {
           "small_string12": 16,
@@ -270,7 +273,7 @@
         "hardware_restore": {
           "mac": "ec:64:c9:7c:f4:34",
           "backup_sha256": "13562e6b657f3344d6765db1cba1507444411aa2bd550d9cd13eb7cb1fd3c317",
-          "verification_sha256": "dd2a7b1a16f2657eb6dab1412035a85ac14b8981273177ec762a5c035b28f33c",
+          "verification_sha256": "c8e5b194554516c23ecd133505a7a863ab41b068d18808c0f81a4deb068f58e0",
           "bytes": 4194304,
           "verified": true
         }
@@ -315,12 +318,12 @@
         ]
       },
       "previous_roo_capture": {
-        "recorded_at": "2026-11-19T20:03:22.298248+00:00",
-        "firmware_sha256": "f4fc6ee544987b8a2e0b4b82d4f8a8eaf533c3424f0a658481fdff09e6cd4644",
-        "archive_sha256": "f8737b12a651cc53aac91a54c6b3c9177b13fb22555944c03bf2cbbf43295a9e"
+        "recorded_at": "2026-11-19T22:43:07.295762+00:00",
+        "firmware_sha256": "6094c5bbe1d0d75775ae29c317dc17aac33b18d679252f7cacbfca5aba3ffd24",
+        "archive_sha256": "328df15d640d9f13ef8ff5fb188c6c79742998a07a85582476a0ef6ae4caa54f"
       },
       "roo_refresh": {
-        "recorded_at": "2026-11-19T22:43:07.295762+00:00",
+        "recorded_at": "2026-11-20T00:41:41.969602+01:00",
         "board": "ESP32-D0WDQ6 (revision v1.1), COM20",
         "device_mac": "8c:4f:00:ab:bc:78",
         "cases": 476,
@@ -328,10 +331,13 @@
         "observations_per_case": 3,
         "timed_samples_per_observation": 7,
         "excluded_records": 0,
-        "library_commit": "0f296ece86878836bcae33b73fbcbe085285bde2",
-        "firmware_sha256": "6094c5bbe1d0d75775ae29c317dc17aac33b18d679252f7cacbfca5aba3ffd24",
-        "firmware_bytes": 1421856,
+        "library_commit": "f99f4b4dda809f0fb0cdef3991c936417ccffbeb",
+        "firmware_sha256": "a85137c1a62d91d984af1b5e6d012c6f7131781e8c7ff1dc97063a9caa21350a",
+        "firmware_bytes": 1423168,
         "default_narrow_integer_hash": "multiply_0x9e3779b1_high_7_fingerprint",
+        "default_wide_integer_hash": "sum_of_two_32_bit_products_high_7_fingerprint",
+        "mutable_storage": "coallocated_entries_and_states_with_direct_pair_copy",
+        "mutable_rehash": "direct_placement_with_separate_iterator_construction",
         "small_string_layout": "length_tail_no_terminator",
         "small_string_key_bytes": {
           "small_string12": 16,
@@ -341,7 +347,7 @@
         "hardware_restore": {
           "mac": "8c:4f:00:ab:bc:78",
           "backup_sha256": "00ace75b0721f10e0eb60049fcb347a91d263885bb1fb866f8d31d50f6919352",
-          "verification_sha256": "c5ef99330661acd97e24c6ee8d31bdda47e32629a42b89ebb8de8f8485d025bb",
+          "verification_sha256": "769477b19979c8bd2dcc8ddf3da1f6d75af256bc0dc526cfda6188f99f3ab93b",
           "bytes": 4194304,
           "verified": true
         }
@@ -357,7 +363,7 @@
         "schema_version": 1,
         "suite": "general",
         "map_profile": "extended",
-        "note": "Roo: 2026-11-19, 3 runs/case; other containers: 2026-11-10, 1 run/case, retained. Separate firmware captures.",
+        "note": "Roo: 2026-11-20, 3 runs/case; other containers: 2026-11-10, 1 run/case, retained. Separate firmware captures.",
         "replaced_map": "roo",
         "previous_cases": 11553,
         "refreshed_cases": 1234,
@@ -367,13 +373,13 @@
         ],
         "input_bundles_sha256": {
           "previous": "e001a68f64a3071d7625756a6b7d788e0f6c17b571ef866d355418777513d0c0",
-          "roo": "9dae1f8a8a76fcc587e8a8d08a0e3274513c1eeace3a48f59b33b012ebad372b"
+          "roo": "930e6bc728f1a21514a691ebe68fa625a973e14ff09270e8862cc4d8daecaa16"
         },
         "generated_sha256": {
-          "summary.csv": "cfb1be2b36c9bc92537723d86ebb6c8573ffd31142e16cc1a010349014756e42",
-          "measurements.csv": "c4b699f06e71de0c5c4bde26b6ccc200543251c74c2f33e177428c7424e53736",
-          "build_metadata.json": "771e08e80ee49aacf2e95aa43822ca06e9692560c31a7b0ad9c4167a04442453",
-          "REPORT.md": "886fe66f218db39832019ce96d49c2dc1044017c8e7b67416cfa9d58ab5c4d87"
+          "summary.csv": "8fba976ea77e52e06bc9afb1adcdb96e7234534552317ada352d5e278d0966f3",
+          "measurements.csv": "6d8ca5dd0a513555d6d88ceaed1428d1b8b8b253f8e1064b6b5ade74cb9f3a4c",
+          "build_metadata.json": "16d361b2b014f75b9f09b6c7f2c4c2e829f6ee3decdacf3a032436a92c2fa985",
+          "REPORT.md": "22355e14d338de939aa7a14eb58e4937c01b3394379ae26a8d97bcd26707444c"
         },
         "refresh_script_sha256": "1d7b32e3ecbdad3ca400c0f4518ed8ec0a579ad8079b9088970c5487b60a702e"
       },
@@ -384,8 +390,8 @@
           "denominator": 4
         },
         "inputs": {
-          "summary.csv": "cfb1be2b36c9bc92537723d86ebb6c8573ffd31142e16cc1a010349014756e42",
-          "build_metadata.json": "771e08e80ee49aacf2e95aa43822ca06e9692560c31a7b0ad9c4167a04442453"
+          "summary.csv": "8fba976ea77e52e06bc9afb1adcdb96e7234534552317ada352d5e278d0966f3",
+          "build_metadata.json": "16d361b2b014f75b9f09b6c7f2c4c2e829f6ee3decdacf3a032436a92c2fa985"
         },
         "script_sha256": "7fbcaa1318dad09dc6795919b89de4c1c930f6f0005b7f0d10ca0b3068156ec0",
         "matplotlib_version": "3.11.2",
@@ -544,8 +550,8 @@
         "small_string_overlay": {
           "input_base": "../../small_string",
           "inputs": {
-            "summary.csv": "82854ee12c03226f97a08202222e2a7262ce345d85acbea2dd832d47eccdd936",
-            "build_metadata.json": "0420c800d9e7f4784e97be7cfebfe057c81bb6b5148faf2bf92a42be5caf1126"
+            "summary.csv": "d75a933747226a773e76c60c69eed395351df71a96f08d188b735977f573cbf5",
+            "build_metadata.json": "a86240070f5855ac6fc94f737b1d1dfcebc1cfd58dbef78482b268d25043737e"
           },
           "cases": 4460,
           "minimum_suites_per_case": 1,
@@ -563,7 +569,7 @@
         "schema_version": 1,
         "suite": "small_string",
         "map_profile": "extended",
-        "note": "Roo: 2026-11-19, 3 runs/case; other containers: 2026-11-10, 1 run/case, retained. Separate firmware captures.\nRoo and retained competitors use different SmallString key layouts.",
+        "note": "Roo: 2026-11-20, 3 runs/case; other containers: 2026-11-10, 1 run/case, retained. Separate firmware captures.\nRoo and retained competitors use different SmallString key layouts.",
         "replaced_map": "roo",
         "previous_cases": 4460,
         "refreshed_cases": 476,
@@ -573,13 +579,13 @@
         ],
         "input_bundles_sha256": {
           "previous": "4949e9a406dd33bba370bfd33059320c3e4b825082b5b0c59f736b16768977c0",
-          "roo": "328df15d640d9f13ef8ff5fb188c6c79742998a07a85582476a0ef6ae4caa54f"
+          "roo": "61728c679ff9bbac5c59a5be4d42e7ede1836f78518f3d168517d205395590b0"
         },
         "generated_sha256": {
-          "summary.csv": "82854ee12c03226f97a08202222e2a7262ce345d85acbea2dd832d47eccdd936",
-          "measurements.csv": "4d282cd7ac608b2073315abe8eb529ef7d0619c43ab9cbc285d53c29459bdd59",
-          "build_metadata.json": "0420c800d9e7f4784e97be7cfebfe057c81bb6b5148faf2bf92a42be5caf1126",
-          "REPORT.md": "8d098cc860f39cef489a7e7f38619e00d6ccbae2a9bcae880b9d90f2e6a3fbb1"
+          "summary.csv": "d75a933747226a773e76c60c69eed395351df71a96f08d188b735977f573cbf5",
+          "measurements.csv": "c6598664a1b1c7135e974f07146778e5f47bae783ff876f557630fa62e11037f",
+          "build_metadata.json": "a86240070f5855ac6fc94f737b1d1dfcebc1cfd58dbef78482b268d25043737e",
+          "REPORT.md": "759c3a1f138673d0c7a8689d88e343fa88f1459d1945df0b37f5fa242bbce583"
         },
         "refresh_script_sha256": "1d7b32e3ecbdad3ca400c0f4518ed8ec0a579ad8079b9088970c5487b60a702e"
       },
@@ -590,8 +596,8 @@
           "denominator": 4
         },
         "inputs": {
-          "summary.csv": "82854ee12c03226f97a08202222e2a7262ce345d85acbea2dd832d47eccdd936",
-          "build_metadata.json": "0420c800d9e7f4784e97be7cfebfe057c81bb6b5148faf2bf92a42be5caf1126"
+          "summary.csv": "d75a933747226a773e76c60c69eed395351df71a96f08d188b735977f573cbf5",
+          "build_metadata.json": "a86240070f5855ac6fc94f737b1d1dfcebc1cfd58dbef78482b268d25043737e"
         },
         "script_sha256": "7fbcaa1318dad09dc6795919b89de4c1c930f6f0005b7f0d10ca0b3068156ec0",
         "matplotlib_version": "3.11.2",
@@ -761,7 +767,7 @@
         "run_spread_percent": {
           "median": 0.0,
           "p95": 0.0,
-          "maximum": 0.023879919647029624
+          "maximum": 86.07475894461527
         },
         "competitor_rows_retained_exactly": true,
         "roo_rows_replaced_exactly": true,
@@ -774,13 +780,19 @@
         "run_spread_percent": {
           "median": 0.0,
           "p95": 0.0,
-          "maximum": 0.0
+          "maximum": 0.11040758862073119
         },
         "competitor_rows_retained_exactly": true,
         "roo_rows_replaced_exactly": true,
         "derived_tables_reproduced_byte_for_byte": true
       }
     }
+  },
+  "insertion_layout_check": {
+    "initial_combined_commit": "de141e0b31d268d520d7c6973c07edf15ea6964b",
+    "initial_combined_firmware_sha256": "d323fd43260812c52b7dc940fb435420afd8cd5077c69200b9a4f42cb6f9de89",
+    "shared_abseil_u64_erase_insert_initial_ratio": 1.0046678676683167,
+    "shared_abseil_u64_erase_insert_published_ratio": 2.0077625165086275
   },
   "tooling_source_sha256": {
     "analyze.py": "16bfe14d7e72490083c0a4f9a2425b0019b0f65e893ad8fce5a495635af21bb5",
@@ -800,32 +812,32 @@
   },
   "files": {
     "README.md": {
-      "sha256": "9ba274dff96c72b84077f88e3a605423432114324ba967a09744f258ec016dd4",
-      "bytes": 10037
+      "sha256": "65062a8965f2d54e58b5bd0712f450d73acbe54f3c1cdfaa23f4c233655666eb",
+      "bytes": 10595
     },
     "general/REPORT.md": {
-      "sha256": "b7c4e0cdb7b8ae6b18b3163e94686a4000be6bb3fd9db61d5dc2a96e0c03352c",
+      "sha256": "5e41bcf7084bd3e81720a92701c5faec616ca6d2fc4f3da616894e44855cc621",
       "bytes": 3780
     },
     "general/benchmark_charts.pdf": {
-      "sha256": "7955a2ad39ee24875713911fbe5768b9847dc9a73358a79c7e7e970f67e333d4",
-      "bytes": 674025
+      "sha256": "e7c33a34dfd05cbfb8543df00eb6f5d26e937e2e0f53fbaa94dbd45c36fabfab",
+      "bytes": 674066
     },
     "general/roo-update.tar.gz": {
-      "sha256": "9dae1f8a8a76fcc587e8a8d08a0e3274513c1eeace3a48f59b33b012ebad372b",
-      "bytes": 60786
+      "sha256": "930e6bc728f1a21514a691ebe68fa625a973e14ff09270e8862cc4d8daecaa16",
+      "bytes": 62310
     },
     "small_string/REPORT.md": {
-      "sha256": "3cb53817a83fc8b9fe5ca3cf1ef3a9a50f97f3a72995ec565fb727b40a71fba8",
+      "sha256": "d16314bc139e9a61d7de0cfd15e5ed453c49633891b9e4f49acd0f0fe9ff13aa",
       "bytes": 3294
     },
     "small_string/benchmark_charts.pdf": {
-      "sha256": "177f4a5875b4014fb1b92a7bb56e1a124a4468f43ed5321fb2a16fd582c1c48f",
-      "bytes": 306997
+      "sha256": "de390a6b8cff03e856c182476885bb30f8712e965e13c39ce43d34b33eeda3e0",
+      "bytes": 307193
     },
     "small_string/roo-update.tar.gz": {
-      "sha256": "328df15d640d9f13ef8ff5fb188c6c79742998a07a85582476a0ef6ae4caa54f",
-      "bytes": 30175
+      "sha256": "61728c679ff9bbac5c59a5be4d42e7ede1836f78518f3d168517d205395590b0",
+      "bytes": 30166
     },
     "general/raw.tar.gz": {
       "sha256": "e001a68f64a3071d7625756a6b7d788e0f6c17b571ef866d355418777513d0c0",

@@ -1,10 +1,10 @@
 # ESP32 reference results — ten-container comparison
 
-Roo was remeasured on 2026-11-19 with the new default for integer and
-enum keys up to 32 bits. It multiplies by `0x9e3779b1` and uses the high
-seven bits of the product as the fingerprint. The table uses a 75% fill limit.
-The aligned Roo string fixtures use length-delimited `SmallString<16>` and
-`SmallString<52>`. The nine competitors retain their original 2026-11-10 captures.
+Roo was remeasured on 2026-11-20 with multiplicative hashing for wide
+integer keys, combined entry and state storage, direct copy construction for
+trivial-field pairs, and direct placement during rehash. The table uses a 75%
+fill limit. The aligned Roo fixtures use length-delimited `SmallString<16>`
+and `SmallString<52>`. The nine competitors retain their original 2026-11-10 captures.
 
 - [General comparison PDF](general/benchmark_charts.pdf): all ten containers;
   **Roo (SmallString)** is an additional series in every string panel.
@@ -66,17 +66,28 @@ Code layout, allocation history and hash seeds can also differ between builds.
 The SmallString overlay comes from a separate board. The charts show the
 recorded timings and per-run ranges without confidence intervals.
 
-## Default integer hashing compared with the previous Roo capture
+## Change from the previous Roo capture
 
-Both Roo captures use the same ESP32, fixture key sets and build settings.
-The previous capture uses fmix32 for these keys. The ratio is the new
-time divided by the previous time, using the geometric mean over sizes
-with at least 16 keys. Lower is faster. Firmware layout can affect both captures.
+Both Roo captures use the same ESP32s, key fixtures and build settings.
+Timings use the default hash with at least 16 keys. Each ratio is the
+geometric mean of new time divided by previous time. Lower is faster.
 
-| Key fixture | Hit time | Miss time | 128-key hit, old and new | 128-key miss, old and new |
-|---|---:|---:|---:|---:|
-| Random uint32 | 0.778× | 0.784× | 250.5 ns → 200.7 ns | 245.0 ns → 198.1 ns |
-| Sequential uint32 | 0.738× | 0.761× | 257.2 ns → 184.3 ns | 238.6 ns → 190.6 ns |
+| Fixture | Hit | Miss | Copy | Growing build | Presized build |
+|---|---:|---:|---:|---:|---:|
+| Random uint32 | 1.000× | 1.000× | 0.677× | 0.718× | 0.884× |
+| Sequential uint32 | 1.000× | 1.000× | 0.677× | 0.718× | 0.875× |
+| Random uint64 | 0.849× | 0.783× | 0.681× | 0.695× | 0.832× |
+| String, 12 chars | 1.000× | 1.012× | 0.823× | 0.723× | 0.938× |
+| String, 48 chars | 1.000× | 1.005× | 0.975× | 0.934× | 0.989× |
+| SmallString, 12 chars | 1.000× | 1.000× | 0.809× | 0.777× | 0.958× |
+| SmallString, 48 chars | 1.000× | 0.992× | 0.768× | 0.829× | 0.955× |
+
+The published build separates bucket placement from iterator construction.
+That follow-up recovered the string construction and mutation timings with
+shared Abseil hashing. In the published firmware, the random uint64
+Abseil erase/insert control took 2.01× the previous Roo time.
+It took 1.00× in the initial combined build. Both builds
+use the same table layout and hash policies.
 
 ## Default-hash performance relative to Roo
 
@@ -90,29 +101,29 @@ Roo, below 1× favors the competitor. Each available key/size case with at least
 
 | Container | Hit lookup | Miss lookup | Iteration | Erase + insert |
 |---|---:|---:|---:|---:|
-| Abseil flat | 2.77× | 2.99× | 1.27× | 2.44× |
-| std::unordered_map | 1.20× | 1.30× | 0.20× | 9.17× |
-| Abseil node | 2.85× | 3.05× | 1.28× | 9.20× |
-| std::map | 2.06× | 2.18× | 1.54× | 8.28× |
-| Tessil robin_map | 0.94× | 0.80× | 1.12× | 0.76× |
-| unordered_dense | 4.00× | 4.01× | 0.20× | 2.89× |
-| ETL (fixed N) | 1.00× | 1.01× | 0.75× | 0.86× |
-| Boost flat | 1.66× | 1.40× | 1.05× | 1.30× |
-| emhash5 | 0.77× | 0.68× | 0.75× | 0.60× |
+| Abseil flat | 2.87× | 3.13× | 1.27× | 2.48× |
+| std::unordered_map | 1.24× | 1.36× | 0.20× | 9.32× |
+| Abseil node | 2.95× | 3.20× | 1.28× | 9.34× |
+| std::map | 2.13× | 2.28× | 1.54× | 8.41× |
+| Tessil robin_map | 0.97× | 0.84× | 1.12× | 0.77× |
+| unordered_dense | 4.13× | 4.20× | 0.20× | 2.93× |
+| ETL (fixed N) | 1.04× | 1.06× | 0.75× | 0.87× |
+| Boost flat | 1.72× | 1.47× | 1.06× | 1.32× |
+| emhash5 | 0.80× | 0.72× | 0.75× | 0.61× |
 
 ### SmallString suite
 
 | Container | Hit lookup | Miss lookup | Iteration | Erase + insert |
 |---|---:|---:|---:|---:|
-| Abseil flat | 2.83× | 3.11× | 1.28× | 3.24× |
-| std::unordered_map | 1.62× | 1.48× | 0.19× | 4.72× |
-| Abseil node | 2.83× | 3.12× | 1.27× | 9.30× |
-| std::map | 1.78× | 1.03× | 1.48× | 5.22× |
-| Tessil robin_map | 1.58× | 1.36× | 1.15× | 1.84× |
-| unordered_dense | 3.02× | 3.32× | 0.20× | 3.29× |
-| ETL (fixed N) | 1.39× | 1.19× | 0.72× | 1.37× |
-| Boost flat | 1.59× | 1.33× | 1.06× | 1.71× |
-| emhash5 | 1.51× | 1.31× | 0.77× | 1.40× |
+| Abseil flat | 2.83× | 3.12× | 1.28× | 3.21× |
+| std::unordered_map | 1.62× | 1.48× | 0.19× | 4.68× |
+| Abseil node | 2.83× | 3.13× | 1.27× | 9.21× |
+| std::map | 1.78× | 1.04× | 1.48× | 5.17× |
+| Tessil robin_map | 1.58× | 1.37× | 1.15× | 1.82× |
+| unordered_dense | 3.02× | 3.33× | 0.20× | 3.26× |
+| ETL (fixed N) | 1.39× | 1.19× | 0.72× | 1.36× |
+| Boost flat | 1.59× | 1.34× | 1.06× | 1.69× |
+| emhash5 | 1.51× | 1.31× | 0.77× | 1.38× |
 
 ### General suite with shared Abseil hashing
 
@@ -121,15 +132,15 @@ postprocessing and capacity policies still differ; std::map remains ordered.
 
 | Container | Hit lookup | Miss lookup | Iteration | Erase + insert |
 |---|---:|---:|---:|---:|
-| Abseil flat | 2.11× | 2.19× | 1.19× | 2.17× |
-| std::unordered_map | 1.50× | 1.50× | 0.18× | 8.71× |
-| Abseil node | 2.15× | 2.21× | 1.19× | 7.44× |
-| std::map | 1.58× | 1.61× | 1.40× | 7.47× |
-| Tessil robin_map | 1.06× | 0.95× | 1.03× | 0.82× |
-| unordered_dense | 3.11× | 3.00× | 0.18× | 3.68× |
-| ETL (fixed N) | 1.01× | 0.97× | 0.67× | 0.99× |
-| Boost flat | 1.60× | 1.43× | 0.99× | 1.34× |
-| emhash5 | 0.85× | 0.76× | 0.69× | 0.70× |
+| Abseil flat | 2.11× | 2.17× | 1.20× | 1.89× |
+| std::unordered_map | 1.50× | 1.48× | 0.18× | 7.57× |
+| Abseil node | 2.15× | 2.19× | 1.20× | 6.47× |
+| std::map | 1.58× | 1.60× | 1.42× | 6.50× |
+| Tessil robin_map | 1.06× | 0.94× | 1.04× | 0.72× |
+| unordered_dense | 3.11× | 2.97× | 0.18× | 3.20× |
+| ETL (fixed N) | 1.01× | 0.97× | 0.68× | 0.86× |
+| Boost flat | 1.60× | 1.42× | 1.00× | 1.17× |
+| emhash5 | 0.85× | 0.75× | 0.70× | 0.60× |
 
 ### Retained memory at 128 entries
 
@@ -139,7 +150,7 @@ the shared query fixtures. All string rows except Roo (SmallString) use std::str
 
 | Container | Random uint32 | String, 12 characters | String, 48 characters |
 |---|---:|---:|---:|
-| Roo | 2,388 | 7,508 | 16,196 |
+| Roo | 2,352 | 7,472 | 16,180 |
 | Abseil flat | 2,476 | 7,468 | 16,172 |
 | std::unordered_map | 4,752 | 7,856 | 16,516 |
 | Abseil node | 4,476 | 7,100 | 15,720 |
@@ -149,7 +160,7 @@ the shared query fixtures. All string rows except Roo (SmallString) use std::str
 | ETL (fixed N) | 2,724 | 5,668 | 14,116 |
 | Boost flat | 2,348 | 7,212 | 15,916 |
 | emhash5 | 3,252 | 8,756 | 17,476 |
-| Roo (SmallString) | — | 5,460 | 14,676 |
+| Roo (SmallString) | — | 5,680 | 14,896 |
 
 ## Regenerate without hardware
 
@@ -180,7 +191,6 @@ galleries, PNG/SVG figures and PDFs stay in ignored `results/`.
 The manifest records numeric-summary, archive, PDF and tooling checksums.
 These PDFs use Python 3.13.5 and Matplotlib 3.11.2; rendering can vary with versions.
 The original metadata is preserved unchanged. Fresh metadata identifies the
-committed Roo baseline and the working-tree integer hashing changes by
-exact source hashes. Historical absolute paths identify inputs, not required checkout
+committed Roo implementation by commit ID and exact source hashes. Historical absolute paths identify inputs, not required checkout
 paths. To repeat on hardware, follow the [build/capture instructions](../../README.md).
 Full flash backups, dependency trees and firmware binaries are not published.

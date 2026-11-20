@@ -209,6 +209,93 @@ TEST(FlatSmallHashMap, CopyConstructor) {
   EXPECT_EQ(map1.at("m"), 13);
 }
 
+// Verifies a fresh copy constructs only live entries from the source and
+// preserves deleted buckets and the occupancy bitmap.
+TEST(FlatSmallHashMap, CopyConstructsOccupiedEntries) {
+  struct CopyCounts {
+    unsigned constructions = 0;
+    unsigned assignments = 0;
+  };
+
+  struct CountedValue {
+    CountedValue() = default;
+
+    explicit CountedValue(CopyCounts& counts) : counts(&counts) {}
+
+    CountedValue(const CountedValue& other) : counts(other.counts) {
+      if (counts != nullptr) ++counts->constructions;
+    }
+
+    CountedValue(CountedValue&&) = default;
+
+    CountedValue& operator=(const CountedValue& other) {
+      counts = other.counts;
+      if (counts != nullptr) ++counts->assignments;
+      return *this;
+    }
+
+    CountedValue& operator=(CountedValue&&) = default;
+
+    CopyCounts* counts = nullptr;
+  };
+
+  CopyCounts counts;
+  using Map = FlatSmallHashMap<std::string, CountedValue>;
+  Map source(32);
+  source.insert({"live one", CountedValue(counts)});
+  source.insert({"deleted", CountedValue(counts)});
+  source.insert({"live two", CountedValue(counts)});
+  ASSERT_TRUE(source.erase("deleted"));
+  counts = {};
+
+  Map copy(source);
+  Map assigned;
+  assigned = source;
+
+  EXPECT_EQ(counts.constructions, 4u);
+  EXPECT_EQ(counts.assignments, 0u);
+  for (Map* result : {&copy, &assigned}) {
+    EXPECT_EQ(result->ht_len(), source.ht_len());
+    EXPECT_EQ(result->size(), source.size());
+    EXPECT_EQ(std::distance(result->begin(), result->end()), 2);
+    EXPECT_TRUE(result->contains("live one"));
+    EXPECT_TRUE(result->contains("live two"));
+    EXPECT_FALSE(result->contains("deleted"));
+    EXPECT_TRUE(result->insert({"deleted", CountedValue(counts)}).second);
+    EXPECT_EQ(result->size(), 3);
+  }
+  EXPECT_FALSE(source.contains("deleted"));
+}
+
+// Verifies the copy still works when the mapped type can be copy-assigned
+// but has a deleted copy constructor.
+TEST(FlatSmallHashMap, CopiesEntriesWithAssignOnlyMappedType) {
+  struct AssignOnly {
+    AssignOnly() = default;
+
+    explicit AssignOnly(unsigned payload) : payload(payload) {}
+
+    AssignOnly(const AssignOnly&) = delete;
+    AssignOnly(AssignOnly&&) = default;
+
+    AssignOnly& operator=(const AssignOnly&) = default;
+    AssignOnly& operator=(AssignOnly&&) = default;
+
+    unsigned payload = 0;
+  };
+
+  using Map = FlatSmallHashMap<unsigned, AssignOnly>;
+  Map source;
+  source.insert({1, AssignOnly(42)});
+
+  Map copy(source);
+  Map assigned;
+  assigned = source;
+
+  EXPECT_EQ(copy.at(1).payload, 42u);
+  EXPECT_EQ(assigned.at(1).payload, 42u);
+}
+
 // Verifies a populated source set can be reused after move construction.
 TEST(FlatSmallHashSet, MoveConstructorLeavesSourceReusable) {
   FlatSmallHashSet<int> source;

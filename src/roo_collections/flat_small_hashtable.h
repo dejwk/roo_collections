@@ -503,7 +503,7 @@ class FlatSmallHashtable
 
     ~Storage() {
       if (entries_ != nullptr) {
-        if (constructed_) destroyEntries(entries_, slots_);
+        destroyEntries(entries_, constructed_);
         std::allocator<Entry>{}.deallocate(entries_, allocationCount(slots_));
       }
     }
@@ -520,7 +520,7 @@ class FlatSmallHashtable
     /// Copies the existing bucket layout, including any tombstones.
     void copy(const FlatSmallHashtable& other) {
       if (entries_ == nullptr) return;
-      copyEntries(other.buffer_);
+      copyEntries(other, impl::FlatSmallDirectCopy<Entry>{});
       auto states = ::new (static_cast<void*>(stateArray(entries_, slots_)))
           State[slots_];
       std::copy_n(other.states_, slots_, states);
@@ -558,26 +558,43 @@ class FlatSmallHashtable
 
     void constructEntries() {
       ::new (static_cast<void*>(entries_)) Entry[slots_];
-      constructed_ = true;
+      constructed_ = slots_;
     }
 
-    void copyEntries(const Entry* source) {
-      copyEntries(source, impl::FlatSmallDirectCopy<Entry>{});
-    }
-
-    void copyEntries(const Entry* source, std::true_type) {
+    void copyEntries(const FlatSmallHashtable& other, std::true_type) {
+      const Entry* source = other.buffer_;
       std::uninitialized_copy_n(source, slots_, entries_);
-      constructed_ = true;
+      constructed_ = slots_;
     }
 
-    void copyEntries(const Entry* source, std::false_type) {
+    void copyEntries(const FlatSmallHashtable& other, std::false_type) {
+      copyEntriesByBucket(other, std::is_copy_constructible<Entry>{});
+    }
+
+    // Start each entry's lifetime once. The count advances only after a
+    // successful construction, so cleanup can destroy the completed prefix.
+    void copyEntriesByBucket(const FlatSmallHashtable& other, std::true_type) {
+      const Entry* source = other.buffer_;
+      for (; constructed_ < slots_; ++constructed_) {
+        void* destination = static_cast<void*>(entries_ + constructed_);
+        if (other.states_[constructed_] < 0) {
+          ::new (destination) Entry(source[constructed_]);
+        } else {
+          ::new (destination) Entry;
+        }
+      }
+    }
+
+    // Preserve copying for entries that support assignment only.
+    void copyEntriesByBucket(const FlatSmallHashtable& other, std::false_type) {
+      const Entry* source = other.buffer_;
       constructEntries();
       std::copy_n(source, slots_, entries_);
     }
 
     uint16_t slots_;
     Entry* entries_;
-    bool constructed_ = false;
+    uint16_t constructed_ = 0;
   };
 
   /// Transfers initialized storage and handles the empty-table sentinel.

@@ -140,6 +140,50 @@ TEST(FlatSmallHashMap, OperatorAssignment) {
   EXPECT_EQ(map1.at("m"), 13);
 }
 
+// Verifies same-capacity assignment copies the hash policy and tombstones,
+// including a tombstone that precedes live entries in a probe sequence.
+TEST(FlatSmallHashMap, SameCapacityIntegerCopyAssignment) {
+  struct OffsetHash {
+    unsigned offset;
+
+    size_t operator()(unsigned key) const noexcept { return offset + key % 2; }
+  };
+  using Map = FlatSmallHashMap<unsigned, unsigned, OffsetHash>;
+  Map source(8, OffsetHash{2});
+  source.insert({10, 100});
+  source.insert({20, 200});
+  source.insert({30, 300});
+  ASSERT_TRUE(source.erase(10));
+
+  Map destination(8, OffsetHash{7});
+  destination.insert({99, 999});
+  ASSERT_EQ(source.ht_len(), destination.ht_len());
+  destination = source;
+
+  EXPECT_EQ(destination.size(), 2);
+  EXPECT_FALSE(destination.contains(10));
+  EXPECT_FALSE(destination.contains(99));
+  EXPECT_EQ(destination.at(20), 200u);
+  EXPECT_EQ(destination.at(30), 300u);
+  EXPECT_EQ(std::distance(destination.begin(), destination.end()), 2);
+  EXPECT_TRUE(destination.insert({10, 101}).second);
+  EXPECT_EQ(destination.size(), 3);
+  EXPECT_FALSE(source.contains(10));
+}
+
+// Verifies copy assignment can still reconstruct storage for entries that can
+// be copy-constructed but cannot be copy-assigned.
+TEST(FlatSmallHashMap, CopyAssignmentWithConstMappedType) {
+  using Map = FlatSmallHashMap<unsigned, const unsigned>;
+  Map source(8);
+  Map destination(8);
+
+  destination = source;
+
+  EXPECT_EQ(destination.ht_len(), source.ht_len());
+  EXPECT_TRUE(destination.empty());
+}
+
 TEST(FlatSmallHashMap, CopyConstructor) {
   std::vector<std::pair<std::string, int>> entries = {
       {"a", 1}, {"b", 2}, {"c", 3},  {"d", 4},  {"e", 5},  {"f", 6}, {"g", 7},

@@ -22,6 +22,18 @@ struct FlatSmallDirectCopy<std::pair<Key, Value>>
     : std::integral_constant<bool, std::is_trivial<Key>::value &&
                                        std::is_trivial<Value>::value> {};
 
+template <typename Entry>
+struct FlatSmallCanReuseCopyStorage : std::false_type {};
+
+// Check the fields because std::pair copy assignment is not always declared
+// noexcept, even when its two field assignments cannot throw.
+template <typename Key, typename Value>
+struct FlatSmallCanReuseCopyStorage<std::pair<Key, Value>>
+    : std::integral_constant<
+          bool, FlatSmallDirectCopy<std::pair<Key, Value>>::value &&
+                    std::is_nothrow_copy_assignable<Key>::value &&
+                    std::is_nothrow_copy_assignable<Value>::value> {};
+
 }  // namespace impl
 
 /// @brief Flat, memory-conscious hash table optimized for small collections.
@@ -219,6 +231,13 @@ class FlatSmallHashtable
   /// @brief Copy assignment.
   FlatSmallHashtable& operator=(const FlatSmallHashtable& other) {
     if (this != &other) {
+      using ReuseStorage = std::integral_constant<
+          bool, impl::FlatSmallCanReuseCopyStorage<Entry>::value &&
+                    std::is_nothrow_copy_assignable<HashFn>::value &&
+                    std::is_nothrow_copy_assignable<KeyFn>::value &&
+                    std::is_nothrow_copy_assignable<KeyCmpFn>::value>;
+      if (copyIntoExistingStorage(other, ReuseStorage{})) return *this;
+
       Storage::destroy(buffer_, ht_len());
       resetToEmptySentinel();
       hash_fn_ = other.hash_fn_;
@@ -451,6 +470,28 @@ class FlatSmallHashtable
   }
 
  private:
+  // Reuses the allocation when both tables have the same bucket layout size.
+  bool copyIntoExistingStorage(const FlatSmallHashtable& other,
+                               std::true_type) {
+    const uint16_t slots = ht_len();
+    if (slots <= 1 || slots != other.ht_len()) return false;
+
+    const Entry* source = other.buffer_;
+    std::copy_n(source, slots, buffer_);
+    std::copy_n(other.states_, slots, states_);
+    hash_fn_ = other.hash_fn_;
+    key_fn_ = other.key_fn_;
+    key_cmp_fn_ = other.key_cmp_fn_;
+    dummy_empty_state_ = other.dummy_empty_state_;
+    used_ = other.used_;
+    erased_ = other.erased_;
+    return true;
+  }
+
+  bool copyIntoExistingStorage(const FlatSmallHashtable&, std::false_type) {
+    return false;
+  }
+
   /// Owns the entries and their trailing state bytes during construction.
   class Storage {
    public:

@@ -1,7 +1,7 @@
 {
-  "schema_version": 2,
-  "snapshot": "esp32-extended-roo-wide-storage-2026-11-20",
-  "implementation": "Wide integer multiply hash, combined allocation, direct pair copy, and direct rehash placement",
+  "schema_version": 3,
+  "snapshot": "esp32-extended-shared-timer-2026-11-21",
+  "implementation": "One compiled timing loop per workload for calibration and sampling",
   "map_profile": "extended",
   "maps": {
     "roo": "Roo",
@@ -200,7 +200,7 @@
     }
   },
   "generation": {
-    "python": "3.13.5",
+    "python": "3.13.15",
     "matplotlib": "3.11.2",
     "pdf_pages_per_suite": 11
   },
@@ -277,6 +277,26 @@
           "bytes": 4194304,
           "verified": true
         }
+      },
+      "shared_timer_capture": {
+        "recorded_at": "2026-11-21T14:09:36.120730+00:00",
+        "board": "ESP32-D0WD-V3 (revision v3.1), original general benchmark board",
+        "cases": 11553,
+        "complete_suites": 1,
+        "timed_samples_per_observation": 7,
+        "excluded_records": 0,
+        "library_base_commit": "240cff048f5c2cdfe6a70f2987b4c0ed4bb86c2f",
+        "harness_source_sha256": {
+          "benchmarks/hashmap/src/benchmark_containers.h": "5cfb410dc38d3d07e4406ff510508d2a667251d6f4f0906808766bb5b2e3efcd",
+          "benchmarks/hashmap/src/benchmark_keys.h": "b0c1019063cd1925d9f3ff3a51d1998f51e0e182feb140784a042bbc9abad360",
+          "benchmarks/hashmap/src/benchmark_timing.h": "31dff77f3ecc52813b3e33cfc271b4831a1ec4eace315e72ecd7cbab7299971b",
+          "benchmarks/hashmap/src/main.cpp": "144acf04b51a8a30bf63c990fff72d3052a86ddf8235d1595dee9ae6e333b377"
+        },
+        "firmware_sha256": "11150b754e2ac5533dcbdf6af3ee0dcb570a49287802f7d5df0e1378e79f82c9",
+        "firmware_bytes": 1313552,
+        "arduino_loop_stack_bytes": 16384,
+        "bundle": "general/shared-timer.tar.gz",
+        "original_firmware_restored": true
       }
     },
     "small_string": {
@@ -351,6 +371,28 @@
           "bytes": 4194304,
           "verified": true
         }
+      },
+      "shared_timer_capture": {
+        "recorded_at": "2026-11-21T14:42:08.842018+00:00",
+        "board": "ESP32-D0WD-V3 (revision v3.1), original general benchmark board",
+        "cases": 4310,
+        "complete_suites": 0,
+        "timed_samples_per_observation": 7,
+        "excluded_records": 0,
+        "library_base_commit": "240cff048f5c2cdfe6a70f2987b4c0ed4bb86c2f",
+        "harness_source_sha256": {
+          "benchmarks/hashmap/src/benchmark_containers.h": "5cfb410dc38d3d07e4406ff510508d2a667251d6f4f0906808766bb5b2e3efcd",
+          "benchmarks/hashmap/src/benchmark_keys.h": "b0c1019063cd1925d9f3ff3a51d1998f51e0e182feb140784a042bbc9abad360",
+          "benchmarks/hashmap/src/benchmark_timing.h": "31dff77f3ecc52813b3e33cfc271b4831a1ec4eace315e72ecd7cbab7299971b",
+          "benchmarks/hashmap/src/main.cpp": "144acf04b51a8a30bf63c990fff72d3052a86ddf8235d1595dee9ae6e333b377"
+        },
+        "firmware_sha256": "11150b754e2ac5533dcbdf6af3ee0dcb570a49287802f7d5df0e1378e79f82c9",
+        "firmware_bytes": 1313552,
+        "arduino_loop_stack_bytes": 16384,
+        "bundle": "small_string/shared-timer.tar.gz",
+        "original_firmware_restored": true,
+        "small_string48_limit": 256,
+        "raw_log_includes_terminal_allocation_failure": true
       }
     }
   },
@@ -359,30 +401,6 @@
       "cases": 11553,
       "pdf": "general/benchmark_charts.pdf",
       "tables": "general/REPORT.md",
-      "refresh": {
-        "schema_version": 1,
-        "suite": "general",
-        "map_profile": "extended",
-        "note": "Roo: 2026-11-20, 3 runs/case; other containers: 2026-11-10, 1 run/case, retained. Separate firmware captures.",
-        "replaced_map": "roo",
-        "previous_cases": 11553,
-        "refreshed_cases": 1234,
-        "changed_string_adapter_sources": [
-          "benchmarks/hashmap/src/benchmark_containers.h",
-          "benchmarks/hashmap/src/benchmark_keys.h"
-        ],
-        "input_bundles_sha256": {
-          "previous": "e001a68f64a3071d7625756a6b7d788e0f6c17b571ef866d355418777513d0c0",
-          "roo": "930e6bc728f1a21514a691ebe68fa625a973e14ff09270e8862cc4d8daecaa16"
-        },
-        "generated_sha256": {
-          "summary.csv": "8fba976ea77e52e06bc9afb1adcdb96e7234534552317ada352d5e278d0966f3",
-          "measurements.csv": "6d8ca5dd0a513555d6d88ceaed1428d1b8b8b253f8e1064b6b5ade74cb9f3a4c",
-          "build_metadata.json": "16d361b2b014f75b9f09b6c7f2c4c2e829f6ee3decdacf3a032436a92c2fa985",
-          "REPORT.md": "22355e14d338de939aa7a14eb58e4937c01b3394379ae26a8d97bcd26707444c"
-        },
-        "refresh_script_sha256": "1d7b32e3ecbdad3ca400c0f4518ed8ec0a579ad8079b9088970c5487b60a702e"
-      },
       "charts": {
         "input_base": "..",
         "fill_ratio": {
@@ -390,16 +408,16 @@
           "denominator": 4
         },
         "inputs": {
-          "summary.csv": "8fba976ea77e52e06bc9afb1adcdb96e7234534552317ada352d5e278d0966f3",
-          "build_metadata.json": "16d361b2b014f75b9f09b6c7f2c4c2e829f6ee3decdacf3a032436a92c2fa985"
+          "summary.csv": "137f8416f519102fbe16f07395fb2a4f69bac4b8f5135306ee3f4b07ca26b31d",
+          "build_metadata.json": "105003618e788f4936eba935726a6e3d36d842bde307e48cc14f3ccfce4df44c"
         },
-        "script_sha256": "7fbcaa1318dad09dc6795919b89de4c1c930f6f0005b7f0d10ca0b3068156ec0",
+        "script_sha256": "1c6dd5733c0fe2db8e2c7bfe7bd56c9dbf30f972909c93e98e8a854801dd2a00",
         "matplotlib_version": "3.11.2",
         "map_profile": "extended",
         "cases": 11553,
         "overview_size": 128,
         "minimum_suites_per_case": 1,
-        "maximum_suites_per_case": 3,
+        "maximum_suites_per_case": 1,
         "samples_per_row": 7,
         "dpi": 160,
         "charts": [
@@ -420,7 +438,7 @@
             "stem": "lookup_default",
             "title": "Lookup across sizes \u00b7 default hashing",
             "group": "default",
-            "plotted_points": 1762,
+            "plotted_points": 1760,
             "panels": 10,
             "x_scales": [
               "log"
@@ -433,7 +451,7 @@
             "stem": "construction_default",
             "title": "Construction and copy \u00b7 default hashing",
             "group": "default",
-            "plotted_points": 2558,
+            "plotted_points": 2555,
             "panels": 15,
             "x_scales": [
               "log"
@@ -446,7 +464,7 @@
             "stem": "iteration_mutation_default",
             "title": "Iteration and mutation \u00b7 default hashing",
             "group": "default",
-            "plotted_points": 1762,
+            "plotted_points": 1760,
             "panels": 10,
             "x_scales": [
               "log"
@@ -459,7 +477,7 @@
             "stem": "cache_default",
             "title": "Cache churn \u00b7 default hashing",
             "group": "default",
-            "plotted_points": 241,
+            "plotted_points": 240,
             "panels": 2,
             "x_scales": [
               "log"
@@ -472,7 +490,7 @@
             "stem": "lookup_shared",
             "title": "Lookup across sizes \u00b7 shared hashing",
             "group": "shared",
-            "plotted_points": 1762,
+            "plotted_points": 1760,
             "panels": 10,
             "x_scales": [
               "log"
@@ -485,7 +503,7 @@
             "stem": "construction_shared",
             "title": "Construction and copy \u00b7 shared hashing",
             "group": "shared",
-            "plotted_points": 2558,
+            "plotted_points": 2555,
             "panels": 15,
             "x_scales": [
               "log"
@@ -498,7 +516,7 @@
             "stem": "iteration_mutation_shared",
             "title": "Iteration and mutation \u00b7 shared hashing",
             "group": "shared",
-            "plotted_points": 1762,
+            "plotted_points": 1760,
             "panels": 10,
             "x_scales": [
               "log"
@@ -511,7 +529,7 @@
             "stem": "cache_shared",
             "title": "Cache churn \u00b7 shared hashing",
             "group": "shared",
-            "plotted_points": 241,
+            "plotted_points": 240,
             "panels": 2,
             "x_scales": [
               "log"
@@ -524,7 +542,7 @@
             "stem": "memory",
             "title": "Retained heap \u00b7 default and shared hashing",
             "group": "both",
-            "plotted_points": 1762,
+            "plotted_points": 1760,
             "panels": 10,
             "x_scales": [
               "log"
@@ -537,7 +555,7 @@
             "stem": "memory_presized",
             "title": "Retained heap \u00b7 growing versus presizing",
             "group": "default",
-            "plotted_points": 1762,
+            "plotted_points": 1760,
             "panels": 10,
             "x_scales": [
               "log"
@@ -550,45 +568,26 @@
         "small_string_overlay": {
           "input_base": "../../small_string",
           "inputs": {
-            "summary.csv": "d75a933747226a773e76c60c69eed395351df71a96f08d188b735977f573cbf5",
-            "build_metadata.json": "a86240070f5855ac6fc94f737b1d1dfcebc1cfd58dbef78482b268d25043737e"
+            "summary.csv": "2fcfd4f45b351bb31d1ae4cd439b1c48bc80826b10a7863aeaa91acb9539f62e",
+            "build_metadata.json": "42d0d98715221d99e16f35fb63edaf5c6b4009483ef29ac932642dd0af16cdc6"
           },
-          "cases": 4460,
+          "cases": 4310,
           "minimum_suites_per_case": 1,
-          "maximum_suites_per_case": 3,
-          "board": "ESP32-D0WDQ6 (revision v1.1), COM20",
+          "maximum_suites_per_case": 1,
+          "board": "ESP32-D0WD-V3 (revision v3.1), original general benchmark board",
           "series": "Roo (SmallString)"
         }
+      },
+      "generated_sha256": {
+        "summary.csv": "137f8416f519102fbe16f07395fb2a4f69bac4b8f5135306ee3f4b07ca26b31d",
+        "measurements.csv": "489cde436cb7c31e13d021fe3a6c90f76f68e5dbeb21fb349add7a8cc7764303",
+        "build_metadata.json": "105003618e788f4936eba935726a6e3d36d842bde307e48cc14f3ccfce4df44c"
       }
     },
     "small_string": {
-      "cases": 4460,
+      "cases": 4310,
       "pdf": "small_string/benchmark_charts.pdf",
       "tables": "small_string/REPORT.md",
-      "refresh": {
-        "schema_version": 1,
-        "suite": "small_string",
-        "map_profile": "extended",
-        "note": "Roo: 2026-11-20, 3 runs/case; other containers: 2026-11-10, 1 run/case, retained. Separate firmware captures.\nRoo and retained competitors use different SmallString key layouts.",
-        "replaced_map": "roo",
-        "previous_cases": 4460,
-        "refreshed_cases": 476,
-        "changed_string_adapter_sources": [
-          "benchmarks/hashmap/src/benchmark_containers.h",
-          "benchmarks/hashmap/src/benchmark_keys.h"
-        ],
-        "input_bundles_sha256": {
-          "previous": "4949e9a406dd33bba370bfd33059320c3e4b825082b5b0c59f736b16768977c0",
-          "roo": "61728c679ff9bbac5c59a5be4d42e7ede1836f78518f3d168517d205395590b0"
-        },
-        "generated_sha256": {
-          "summary.csv": "d75a933747226a773e76c60c69eed395351df71a96f08d188b735977f573cbf5",
-          "measurements.csv": "c6598664a1b1c7135e974f07146778e5f47bae783ff876f557630fa62e11037f",
-          "build_metadata.json": "a86240070f5855ac6fc94f737b1d1dfcebc1cfd58dbef78482b268d25043737e",
-          "REPORT.md": "759c3a1f138673d0c7a8689d88e343fa88f1459d1945df0b37f5fa242bbce583"
-        },
-        "refresh_script_sha256": "1d7b32e3ecbdad3ca400c0f4518ed8ec0a579ad8079b9088970c5487b60a702e"
-      },
       "charts": {
         "input_base": "..",
         "fill_ratio": {
@@ -596,16 +595,16 @@
           "denominator": 4
         },
         "inputs": {
-          "summary.csv": "d75a933747226a773e76c60c69eed395351df71a96f08d188b735977f573cbf5",
-          "build_metadata.json": "a86240070f5855ac6fc94f737b1d1dfcebc1cfd58dbef78482b268d25043737e"
+          "summary.csv": "2fcfd4f45b351bb31d1ae4cd439b1c48bc80826b10a7863aeaa91acb9539f62e",
+          "build_metadata.json": "42d0d98715221d99e16f35fb63edaf5c6b4009483ef29ac932642dd0af16cdc6"
         },
-        "script_sha256": "7fbcaa1318dad09dc6795919b89de4c1c930f6f0005b7f0d10ca0b3068156ec0",
+        "script_sha256": "1c6dd5733c0fe2db8e2c7bfe7bd56c9dbf30f972909c93e98e8a854801dd2a00",
         "matplotlib_version": "3.11.2",
         "map_profile": "extended",
-        "cases": 4460,
+        "cases": 4310,
         "overview_size": 128,
         "minimum_suites_per_case": 1,
-        "maximum_suites_per_case": 3,
+        "maximum_suites_per_case": 1,
         "samples_per_row": 7,
         "dpi": 160,
         "charts": [
@@ -626,7 +625,7 @@
             "stem": "lookup_default",
             "title": "Lookup across sizes \u00b7 default hashing",
             "group": "default",
-            "plotted_points": 620,
+            "plotted_points": 600,
             "panels": 4,
             "x_scales": [
               "log"
@@ -639,7 +638,7 @@
             "stem": "construction_default",
             "title": "Construction and copy \u00b7 default hashing",
             "group": "default",
-            "plotted_points": 899,
+            "plotted_points": 870,
             "panels": 6,
             "x_scales": [
               "log"
@@ -652,7 +651,7 @@
             "stem": "iteration_mutation_default",
             "title": "Iteration and mutation \u00b7 default hashing",
             "group": "default",
-            "plotted_points": 620,
+            "plotted_points": 600,
             "panels": 4,
             "x_scales": [
               "log"
@@ -665,7 +664,7 @@
             "stem": "cache_default",
             "title": "Cache churn \u00b7 default hashing",
             "group": "default",
-            "plotted_points": 210,
+            "plotted_points": 200,
             "panels": 2,
             "x_scales": [
               "log"
@@ -678,7 +677,7 @@
             "stem": "lookup_shared",
             "title": "Lookup across sizes \u00b7 shared hashing",
             "group": "shared",
-            "plotted_points": 620,
+            "plotted_points": 600,
             "panels": 4,
             "x_scales": [
               "log"
@@ -691,7 +690,7 @@
             "stem": "construction_shared",
             "title": "Construction and copy \u00b7 shared hashing",
             "group": "shared",
-            "plotted_points": 899,
+            "plotted_points": 870,
             "panels": 6,
             "x_scales": [
               "log"
@@ -704,7 +703,7 @@
             "stem": "iteration_mutation_shared",
             "title": "Iteration and mutation \u00b7 shared hashing",
             "group": "shared",
-            "plotted_points": 620,
+            "plotted_points": 600,
             "panels": 4,
             "x_scales": [
               "log"
@@ -717,7 +716,7 @@
             "stem": "cache_shared",
             "title": "Cache churn \u00b7 shared hashing",
             "group": "shared",
-            "plotted_points": 210,
+            "plotted_points": 200,
             "panels": 2,
             "x_scales": [
               "log"
@@ -730,7 +729,7 @@
             "stem": "memory",
             "title": "Retained heap \u00b7 default and shared hashing",
             "group": "both",
-            "plotted_points": 620,
+            "plotted_points": 600,
             "panels": 4,
             "x_scales": [
               "log"
@@ -743,7 +742,7 @@
             "stem": "memory_presized",
             "title": "Retained heap \u00b7 growing versus presizing",
             "group": "default",
-            "plotted_points": 620,
+            "plotted_points": 600,
             "panels": 4,
             "x_scales": [
               "log"
@@ -753,6 +752,11 @@
             ]
           }
         ]
+      },
+      "generated_sha256": {
+        "summary.csv": "2fcfd4f45b351bb31d1ae4cd439b1c48bc80826b10a7863aeaa91acb9539f62e",
+        "measurements.csv": "d5d1e4350dc8f3a6a67f481178062319f027598231eaf8fb89b417f03127249c",
+        "build_metadata.json": "42d0d98715221d99e16f35fb63edaf5c6b4009483ef29ac932642dd0af16cdc6"
       }
     }
   },
@@ -795,16 +799,16 @@
     "shared_abseil_u64_erase_insert_published_ratio": 2.0077625165086275
   },
   "tooling_source_sha256": {
-    "analyze.py": "16bfe14d7e72490083c0a4f9a2425b0019b0f65e893ad8fce5a495635af21bb5",
+    "analyze.py": "dd445b6a4a69cf8b23ade99942e147c3d7106f69f9a287c93a75510b288a073d",
     "backup_flash.py": "3deb537888f39bb32e6b8a28312f443fc7f5bfaaa27f9193d327ffa998f840bb",
-    "bundle.py": "3709f4b4e6bb2d73a72f11d6528b6d6ef81123387b8b223b1636256c01d5e10b",
+    "bundle.py": "230463e85602c8f161df4ebd086c446426590a1effaba09946b13c80550be2de",
     "capture.py": "b161e290cb39729628120ab2076890368061a2686af743c76f07c30a4cec778a",
     "common.py": "536dd16a28b526171ed346871ac5d122bf1e3ad24779ee49e34873f464a03e97",
     "compare.py": "94fe2a8fc2c0bbe9ef5e8ae5a6c27df2a621211974bbdcda534044a2b7f6cf89",
     "dependencies.py": "55b4315689034467e25bb2a84dd35d79ca60d2648186176a4b2e233fca79792e",
     "fetch_dependencies.py": "d61552e20c0216e6f57116d80c8447987f6ed6b2dc3f51f82bbaaaa441cf52a5",
     "metadata.py": "7647b1a2339aaf66ea5519bb5f492d4efb1fc1ff52b76183bb2658bd3a7e3127",
-    "plot.py": "7fbcaa1318dad09dc6795919b89de4c1c930f6f0005b7f0d10ca0b3068156ec0",
+    "plot.py": "1c6dd5733c0fe2db8e2c7bfe7bd56c9dbf30f972909c93e98e8a854801dd2a00",
     "receipt.py": "abdb797faafc4b0645586073c4581b4f7b1a461d207aef08853f5c7e6d4b9efd",
     "refresh.py": "1d7b32e3ecbdad3ca400c0f4518ed8ec0a579ad8079b9088970c5487b60a702e",
     "suites.py": "8ebcce48d20a18c696ff2c0d93bf9363ef13385062e37b9042052bd00fc7d719",
@@ -812,28 +816,28 @@
   },
   "files": {
     "README.md": {
-      "sha256": "65062a8965f2d54e58b5bd0712f450d73acbe54f3c1cdfaa23f4c233655666eb",
-      "bytes": 10595
+      "sha256": "2ce1e50443c181b42bd0b5982a4742b5ce50de5fcd60ba07cd129c060d566b60",
+      "bytes": 7585
     },
     "general/REPORT.md": {
-      "sha256": "5e41bcf7084bd3e81720a92701c5faec616ca6d2fc4f3da616894e44855cc621",
-      "bytes": 3780
+      "sha256": "cef525aa00f855a0879c2440cf8dd84bcd89f4414ba0b7a0fca15abb86a15888",
+      "bytes": 9731
     },
     "general/benchmark_charts.pdf": {
-      "sha256": "e7c33a34dfd05cbfb8543df00eb6f5d26e937e2e0f53fbaa94dbd45c36fabfab",
-      "bytes": 674066
+      "sha256": "af4ea0e929a20570986c4a5b55e24bec603ed8e06d34719b4f7da2e222d2fc11",
+      "bytes": 670180
     },
     "general/roo-update.tar.gz": {
       "sha256": "930e6bc728f1a21514a691ebe68fa625a973e14ff09270e8862cc4d8daecaa16",
       "bytes": 62310
     },
     "small_string/REPORT.md": {
-      "sha256": "d16314bc139e9a61d7de0cfd15e5ed453c49633891b9e4f49acd0f0fe9ff13aa",
-      "bytes": 3294
+      "sha256": "d3e3b912100015e857250bdfb58792c5e138447581f53266b8df0380d33fca24",
+      "bytes": 5543
     },
     "small_string/benchmark_charts.pdf": {
-      "sha256": "de390a6b8cff03e856c182476885bb30f8712e965e13c39ce43d34b33eeda3e0",
-      "bytes": 307193
+      "sha256": "97d9f9d993292cdeae926a57f441ca30be5a3cbf20e52ad5b6284c2671ba9465",
+      "bytes": 299978
     },
     "small_string/roo-update.tar.gz": {
       "sha256": "61728c679ff9bbac5c59a5be4d42e7ede1836f78518f3d168517d205395590b0",
@@ -846,6 +850,68 @@
     "small_string/raw.tar.gz": {
       "sha256": "4949e9a406dd33bba370bfd33059320c3e4b825082b5b0c59f736b16768977c0",
       "bytes": 79234
+    },
+    "general/shared-timer.tar.gz": {
+      "sha256": "f7f69d4cee7d655beaf6c3e252b9c2ef591d4ac5912ce9fa65595d9aac8b66c0",
+      "bytes": 162530
+    },
+    "small_string/shared-timer.tar.gz": {
+      "sha256": "12e673d68e22fd6495511da1b92041fac494dc26bc783c785d735f0d88e56d11",
+      "bytes": 69367
+    }
+  },
+  "historical_comparisons": {
+    "general": {
+      "refresh": {
+        "schema_version": 1,
+        "suite": "general",
+        "map_profile": "extended",
+        "note": "Roo: 2026-11-20, 3 runs/case; other containers: 2026-11-10, 1 run/case, retained. Separate firmware captures.",
+        "replaced_map": "roo",
+        "previous_cases": 11553,
+        "refreshed_cases": 1234,
+        "changed_string_adapter_sources": [
+          "benchmarks/hashmap/src/benchmark_containers.h",
+          "benchmarks/hashmap/src/benchmark_keys.h"
+        ],
+        "input_bundles_sha256": {
+          "previous": "e001a68f64a3071d7625756a6b7d788e0f6c17b571ef866d355418777513d0c0",
+          "roo": "930e6bc728f1a21514a691ebe68fa625a973e14ff09270e8862cc4d8daecaa16"
+        },
+        "generated_sha256": {
+          "summary.csv": "8fba976ea77e52e06bc9afb1adcdb96e7234534552317ada352d5e278d0966f3",
+          "measurements.csv": "6d8ca5dd0a513555d6d88ceaed1428d1b8b8b253f8e1064b6b5ade74cb9f3a4c",
+          "build_metadata.json": "16d361b2b014f75b9f09b6c7f2c4c2e829f6ee3decdacf3a032436a92c2fa985",
+          "REPORT.md": "22355e14d338de939aa7a14eb58e4937c01b3394379ae26a8d97bcd26707444c"
+        },
+        "refresh_script_sha256": "1d7b32e3ecbdad3ca400c0f4518ed8ec0a579ad8079b9088970c5487b60a702e"
+      }
+    },
+    "small_string": {
+      "refresh": {
+        "schema_version": 1,
+        "suite": "small_string",
+        "map_profile": "extended",
+        "note": "Roo: 2026-11-20, 3 runs/case; other containers: 2026-11-10, 1 run/case, retained. Separate firmware captures.\nRoo and retained competitors use different SmallString key layouts.",
+        "replaced_map": "roo",
+        "previous_cases": 4460,
+        "refreshed_cases": 476,
+        "changed_string_adapter_sources": [
+          "benchmarks/hashmap/src/benchmark_containers.h",
+          "benchmarks/hashmap/src/benchmark_keys.h"
+        ],
+        "input_bundles_sha256": {
+          "previous": "4949e9a406dd33bba370bfd33059320c3e4b825082b5b0c59f736b16768977c0",
+          "roo": "61728c679ff9bbac5c59a5be4d42e7ede1836f78518f3d168517d205395590b0"
+        },
+        "generated_sha256": {
+          "summary.csv": "d75a933747226a773e76c60c69eed395351df71a96f08d188b735977f573cbf5",
+          "measurements.csv": "c6598664a1b1c7135e974f07146778e5f47bae783ff876f557630fa62e11037f",
+          "build_metadata.json": "a86240070f5855ac6fc94f737b1d1dfcebc1cfd58dbef78482b268d25043737e",
+          "REPORT.md": "759c3a1f138673d0c7a8689d88e343fa88f1459d1945df0b37f5fa242bbce583"
+        },
+        "refresh_script_sha256": "1d7b32e3ecbdad3ca400c0f4518ed8ec0a579ad8079b9088970c5487b60a702e"
+      }
     }
   }
 }

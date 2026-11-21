@@ -167,8 +167,11 @@ class Results:
             limit = max(self.small_string.sizes["small_string48"])
             extra_layout = ("aligned length-delimited keys; " if self.small_string.build.get(
                 "small_string_layout") == "length_tail_no_terminator" else "")
-            text += (f"\nRoo (SmallString): {extra_layout}separate capture/board; other string series use std::string. "
+            text += (f"\nRoo (SmallString): {extra_layout}separate capture; other string series use std::string. "
                      f"48-character SmallString ends at {limit} entries.")
+        if self.suite == "small_string":
+            limit = max(self.sizes["small_string48"])
+            text += f"\n48-character SmallString ends at {limit} entries."
         if self.build.get("comparison_note"):
             text += "\n" + self.build["comparison_note"]
         return text
@@ -372,7 +375,7 @@ def write_gallery(output, charts, results, manifest):
         intro += (f" Roo (SmallString) is an additional string-only series from a separate "
                   f"{len(results.small_string.data):,}-case capture on "
                   f"{results.small_string.build['board']}; other string series use std::string. "
-                  "Timing differences also include board and binary-layout effects.")
+                  "Timing can vary with the board and firmware layout.")
     if results.build.get("comparison_note"):
         intro += " " + results.build["comparison_note"]
     source_report = os.path.relpath(results.directory / "REPORT.md", output)

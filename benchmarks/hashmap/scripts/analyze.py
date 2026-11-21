@@ -21,12 +21,12 @@ WORKLOADS = ("find_hit", "find_miss", "iteration", "copy_ctor", "erase_insert",
 SIZES = (1, 2, 4, 7, 8, 10, 15, 16, 32, 54, 64, 100, 128, 256, 400, 512, 1024, 2048)
 
 
-def expected_cases(suite="general", profile="classic"):
+def expected_cases(suite="general", profile="classic", small_string48_limit=400):
     result = set()
     for key in SUITES[suite]:
         string = string_key(key)
         for n in SIZES:
-            if key == "small_string48" and n > 400:
+            if key == "small_string48" and n > small_string48_limit:
                 continue
             if string and n > 512:
                 continue
@@ -57,7 +57,12 @@ def main():
     parser.add_argument("--allow-partial-suites", action="store_true",
                         help="With --min-observations, retain only completed fixtures "
                              "followed by another fixture in an interrupted suite")
+    parser.add_argument("--small-string48-through-256", action="store_true",
+                        help="Use the completed SmallString cases before the first 400-entry "
+                             "48-character row in each transcript")
     args = parser.parse_args()
+    if args.small_string48_through_256 and args.min_observations is not None:
+        parser.error("The SmallString size limit requires complete observations at all included sizes")
     if args.min_observations is not None and args.min_observations < 1:
         parser.error("--min-observations must be positive")
     if args.allow_partial_suites and args.min_observations is None:
@@ -100,7 +105,10 @@ def main():
                 if profile is not None and profile != current_profile:
                     raise ValueError("Cannot combine different map profiles")
                 profile = current_profile
-                expected = expected_cases(suite, profile)
+                if args.small_string48_through_256 and suite != "small_string":
+                    raise ValueError("The SmallString size limit requires a SmallString suite")
+                size_limit = 256 if args.small_string48_through_256 else 400
+                expected = expected_cases(suite, profile, size_limit)
                 runs[run] = {"end": False, "cases": set(), "start": start}
                 metadata.append(f"{path.name}: {line}")
             elif fields[0] == "END":
@@ -129,6 +137,15 @@ def main():
                         raise ValueError(f"Invalid timing: {line}")
                 if not row["min_ns"] <= row["median_ns"] <= row["max_ns"]:
                     raise ValueError(f"Unordered samples: {line}")
+                if (args.small_string48_through_256 and
+                        (row["key"], row["n"]) == ("small_string48", 400)):
+                    state = runs[row["run"]]
+                    if state["cases"] != expected:
+                        raise ValueError("Incomplete SmallString coverage before the 400-entry fixture")
+                    # The next fixture's first row proves the preceding fixture
+                    # completed its heap checks. Keep the original log intact.
+                    state["size_limit_reached"] = True
+                    break
                 case = tuple(row[k] for k in GROUP)
                 if case not in expected:
                     raise ValueError(f"Unexpected case: {case}")
@@ -168,7 +185,8 @@ def main():
                     state["cases"] -= cases
         rows = [row for row in rows if id(row) not in discarded]
     for run, state in runs.items():
-        if (not state["end"] and not args.allow_partial_suites) or (state["cases"] != expected and args.min_observations is None):
+        finished = state["end"] or state.get("size_limit_reached", False)
+        if (not finished and not args.allow_partial_suites) or (state["cases"] != expected and args.min_observations is None):
             raise ValueError(f"Incomplete {run}: {len(state['cases'])}/{len(expected)} cases, "
                              f"end={state['end']}, missing={expected - state['cases']}")
     out = args.output_dir
@@ -224,8 +242,14 @@ def main():
     complete = sum(state["end"] and state["cases"] == expected for state in runs.values())
     minimum = min(len(values) for values in groups.values())
     maximum = max(len(values) for values in groups.values())
+    coverage = (f"Validated {len(rows)} rows in the requested size range. "
+                "The 48-character SmallString fixture ends at 256 entries in these results. "
+                "The raw log includes the subsequent 400-entry attempt."
+                if args.small_string48_through_256 else
+                f"Validated {complete} complete suites, {len(rows)} rows and "
+                f"{minimum}–{maximum} observations per case.")
     text = ["# ESP32 hash map results", "", f"Benchmark suite: `{suite}`; map profile: `{profile}`.", "",
-            f"Validated {complete} complete suites, {len(rows)} rows and {minimum}–{maximum} observations per case. "
+            coverage + " "
             "Each observation is the median of seven timed samples. Between-suite variation is unavailable with one suite.", "",
             source_note, "",
             "## Measurement", "",
@@ -271,7 +295,7 @@ def main():
              "The suite does not measure immutable owners, read-only base interfaces, heterogeneous lookup, "
              "latency tails, fragmentation after arbitrary lifetimes, peak heap or isolated firmware size. "
              "Maximum fixture sizes are constrained by contiguous memory needed for copies.", ""]
-    (out / "excluded_records.json").write_text(json.dumps({
+    coverage_info = {
         "benchmark_suite": suite, "map_profile": profile, "attempted_suites": len(runs), "ended_suites": ended,
         "interrupted_suites": len(runs) - ended, "suites_with_complete_case_coverage": complete,
         "minimum_observations_per_case": minimum, "maximum_observations_per_case": maximum,
@@ -279,12 +303,17 @@ def main():
         "suite_coverage": [{"suite": run, "intact_cases": len(state["cases"]),
                             "expected_cases": len(expected), "ended": state["end"]}
                            for run, state in runs.items()],
-    }, indent=2) + "\n")
+    }
+    if args.small_string48_through_256:
+        coverage_info["small_string48_limit"] = 256
+        coverage_info["suites_reaching_size_limit"] = sum(
+            state.get("size_limit_reached", False) for state in runs.values())
+    (out / "excluded_records.json").write_text(json.dumps(coverage_info, indent=2) + "\n")
     (out / "REPORT.md").write_text("\n".join(text))
     if args.charts:
         subprocess.run([sys.executable, str(Path(__file__).with_name("plot.py")),
                         "--results-dir", str(out)], check=True)
-    print(f"Validated {complete} complete suites and {len(rows)} rows; wrote {out}")
+    print(f"{coverage} Wrote {out}")
 
 
 if __name__ == "__main__":

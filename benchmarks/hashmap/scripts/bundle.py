@@ -14,12 +14,15 @@ import tempfile
 from common import HARNESS, PROJECT, check_url, digest, download, extract_files, normalize_sources
 
 
-def analyze(logs, output):
-    subprocess.run([sys.executable, str(PROJECT / "scripts/analyze.py"), *map(str, logs),
-                    "--output-dir", str(output)], check=True)
+def analyze(logs, output, small_string48_through_256=False):
+    command = [sys.executable, str(PROJECT / "scripts/analyze.py"), *map(str, logs),
+               "--output-dir", str(output)]
+    if small_string48_through_256:
+        command.append("--small-string48-through-256")
+    subprocess.run(command, check=True)
 
 
-def pack(results, logs, output, run_id, url=None):
+def pack(results, logs, output, run_id, url=None, *, small_string48_through_256=False):
     if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", run_id) is None:
         raise ValueError("Run ID must contain only letters, digits, dots, underscores or hyphens")
     if url is not None:
@@ -47,11 +50,14 @@ def pack(results, logs, output, run_id, url=None):
             target = frozen / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(path, target)
-        analyze([frozen / "raw" / path.name for path in logs], validation)
+        analyze([frozen / "raw" / path.name for path in logs], validation,
+                small_string48_through_256)
         manifest = dict(schema_version=1, id=run_id, raw_logs=["raw/" + p.name for p in logs],
                         files={name: digest(frozen / name) for name in files},
                         tooling_sha256={name: digest(PROJECT / "scripts" / name)
                                         for name in ("analyze.py", "compare.py", "plot.py", "common.py", "suites.py")})
+        if small_string48_through_256:
+            manifest["small_string48_through_256"] = True
         data = (json.dumps(manifest, indent=2) + "\n").encode()
         with output.open("xb") as dest, tarfile.open(fileobj=dest, mode="w:gz") as archive:
             info = tarfile.TarInfo("bundle_manifest.json")
@@ -90,7 +96,10 @@ def unpack(archive, output, expected_sha256=None):
         for name, expected in manifest["files"].items():
             if digest(temp / name) != expected:
                 raise ValueError(f"Bundled file checksum mismatch: {name}")
-        analyze([temp / name for name in manifest["raw_logs"]], temp)
+        limited = manifest.get("small_string48_through_256", False)
+        if not isinstance(limited, bool):
+            raise ValueError("Invalid SmallString size limit in bundle")
+        analyze([temp / name for name in manifest["raw_logs"]], temp, limited)
         temp.rename(output)
     return output
 
@@ -104,6 +113,8 @@ def main():
     create.add_argument("--id", required=True)
     create.add_argument("--output", type=Path, required=True)
     create.add_argument("--url", help="Prospective HTTPS release-asset URL for the generated index entry")
+    create.add_argument("--small-string48-through-256", action="store_true",
+                        help="Archive a SmallString run with the 48-character results limited to 256 entries")
     restore = commands.add_parser("unpack")
     restore.add_argument("archive", type=Path)
     restore.add_argument("--output", type=Path, required=True)
@@ -115,7 +126,8 @@ def main():
     args = parser.parse_args()
     (PROJECT / ".pio").mkdir(exist_ok=True)
     if args.command == "pack":
-        print(json.dumps(pack(args.results, args.log, args.output, args.id, args.url), indent=2))
+        print(json.dumps(pack(args.results, args.log, args.output, args.id, args.url,
+                              small_string48_through_256=args.small_string48_through_256), indent=2))
     elif args.command == "unpack":
         unpack(args.archive, args.output, args.sha256)
     else:

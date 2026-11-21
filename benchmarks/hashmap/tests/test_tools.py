@@ -221,7 +221,7 @@ class ToolsTest(unittest.TestCase):
             sizes, values = results.series(name, policy, "string48", "iteration", factor=1)
             self.assertEqual(max(sizes), 400)
             self.assertTrue(all(value == 2.5 for value in values))
-        self.assertIn("separate capture/board", results.footer())
+        self.assertIn("separate capture; other string series", results.footer())
 
     def test_small_string_overlay_rejects_wrong_suites_and_changed_implementation(self):
         """Verifies overlays cannot silently compare different source implementations."""
@@ -244,6 +244,34 @@ class ToolsTest(unittest.TestCase):
         path.write_text(json.dumps(metadata))
         with self.assertRaisesRegex(ValueError, "configuration changed: compiler"):
             plot.Results(self.results, small)
+
+    def test_small_string_bundle_preserves_raw_log_and_complete_size_range(self):
+        """Verifies the size limit preserves the transcript and requires every included case."""
+        small = self.root / "bounded-small"
+        log = fixture(small, "small_string", "extended")
+        lines = log.read_text().splitlines()
+        inside = [line for line in lines if ",small_string48,400," not in line
+                  and not line.startswith("END,")]
+        outside = next(line for line in lines if ",small_string48,400," in line)
+        log.write_text("\n".join(inside + [outside, "abort() was called", ""]))
+        archive = self.root / "limited.tar.gz"
+        bundle.pack(small, [], archive, "bounded", small_string48_through_256=True)
+        unpacked = bundle.unpack(archive, self.root / "unpacked-bounded")
+        self.assertEqual((unpacked / "raw" / log.name).read_bytes(), log.read_bytes())
+        with (unpacked / "summary.csv").open() as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual(len(rows), 4310)
+        self.assertEqual(max(int(row["n"]) for row in rows
+                             if row["key"] == "small_string48"), 256)
+        import plot
+        self.assertIn("48-character SmallString ends at 256 entries",
+                      plot.Results(unpacked).footer())
+        failed = run_script("analyze.py", log, "--output-dir", small, check=False)
+        self.assertNotEqual(failed.returncode, 0)
+        log.write_text("\n".join(inside[:-1] + [outside, "abort() was called", ""]))
+        failed = run_script("analyze.py", log, "--output-dir", small,
+                            "--small-string48-through-256", check=False)
+        self.assertIn("Incomplete SmallString coverage", failed.stderr)
 
     def test_truncated_capture_is_rejected(self):
         self.log.write_text(self.log.read_text().rsplit("END,", 1)[0])

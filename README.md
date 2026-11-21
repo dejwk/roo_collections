@@ -11,10 +11,10 @@ and ESP-IDF and on Raspberry Pi Pico.
 provides expected constant-time lookup. The default hashes balance speed and
 distribution with lightweight mixing for integer and enum keys and
 content-based hashing for strings. In the general ESP32 benchmark, Roo
-completed successful lookups in about a third of Abseil flat's time across
-the tested key types and sizes of 16 entries and up. In the SmallString
-suite, Roo took about two-thirds of the time of Boost flat and emhash5 for
-successful lookups. Those results include differences in inline key layout.
+completed successful lookups in about 37% of Abseil flat's time across the
+tested key types and sizes of 16 entries and up. In the SmallString suite,
+where every map used the same inline key types, Roo took about 81% of Boost
+flat's time and about the same time as emhash5 for successful lookups.
 
 [General benchmark PDF](benchmarks/hashmap/reference_results/esp32/general/benchmark_charts.pdf) ·
 [SmallString benchmark PDF](benchmarks/hashmap/reference_results/esp32/small_string/benchmark_charts.pdf) ·

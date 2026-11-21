@@ -238,7 +238,7 @@ python scripts/plot.py --results-dir results/my-run \
 `--small-string-results` adds a separate Roo (SmallString) series to every
 string panel, including the overview, lookup, iteration/mutation, construction,
 cache and memory charts. It uses the matching payload length and hash policy,
-retains the captured size range (48-character SmallString stops at 400), and
+retains the size range in the SmallString capture, and
 records both input sets in the chart manifest. Integer panels are unchanged.
 The tool requires matching library/dependency source hashes and recorded build
 settings. Captures can come from different boards or harnesses; the charts label

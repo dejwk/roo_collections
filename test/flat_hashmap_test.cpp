@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -103,6 +104,38 @@ TEST(FlatSmallHashMap, StringView) {
   EXPECT_EQ(1, map["a"]);
   EXPECT_EQ(2, map[std::string_view("b")]);
 }
+
+#ifdef ARDUINO
+// Verifies both Arduino hash overloads borrow their arguments and lookups
+// accept a string long enough to use Arduino's heap-backed string storage.
+TEST(FlatSmallHashMap, BorrowsLongArduinoLookupKey) {
+  using DefaultArduinoHash = DefaultHashFn<::String>;
+  using DefaultHashSignature =
+      size_t (DefaultArduinoHash::*)(const ::String&) const;
+  using TransparentHashSignature =
+      size_t (TransparentStringHashFn::*)(const ::String&) const;
+  static_assert(std::is_same<decltype(&DefaultArduinoHash::operator()),
+                             DefaultHashSignature>::value,
+                "default Arduino string hash must borrow the query");
+  constexpr TransparentHashSignature kTransparentHash =
+      &TransparentStringHashFn::operator();
+
+  constexpr char kKey[] =
+      "sensors/first-floor/living-room/temperature/current-reading";
+  const ::String lookup_key(kKey);
+  ASSERT_EQ(lookup_key.length(), sizeof(kKey) - 1);
+  EXPECT_EQ((TransparentStringHashFn{}.*kTransparentHash)(lookup_key),
+            DefaultArduinoHash{}(lookup_key));
+
+  const FlatSmallStringHashMap<int> map({{kKey, 21}});
+  const auto it = map.find(lookup_key);
+  ASSERT_NE(it, map.end());
+  EXPECT_EQ(it->second, 21);
+
+  const FlatSmallHashSet<::String> set({lookup_key});
+  EXPECT_TRUE(set.contains(lookup_key));
+}
+#endif
 
 TEST(FlatSmallHashMap, OperatorAssignment) {
   std::vector<std::pair<std::string, int>> entries = {

@@ -238,7 +238,8 @@ struct DefaultHashFn<SmallString<N>> {
 #ifdef ARDUINO
 template <>
 struct DefaultHashFn<::String> {
-  size_t operator()(::String val) const {
+  /// Hashes Arduino string content without copying the string.
+  size_t operator()(const ::String& val) const {
     return DefaultHashFn<::roo::string_view>()(
         ::roo::string_view(val.c_str(), val.length()));
   }
@@ -267,7 +268,8 @@ struct TransparentStringHashFn {
   }
 
 #ifdef ARDUINO
-  inline size_t operator()(::String val) const {
+  /// Accepts Arduino string lookups without copying the query.
+  size_t operator()(const ::String& val) const {
     return DefaultHashFn<::String>()(val);
   }
 #endif

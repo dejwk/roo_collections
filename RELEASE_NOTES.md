@@ -1,4 +1,11 @@
-# roo_collections 1.4.9
+# roo_collections 2.0.0
+
+- Add C++17 compile-time hash maps, sets, and record tables, with a shared
+  read-only API for compatible mutable and immutable containers.
+- Improve mutable map lookup, construction, and retained memory. See the
+  [ESP32 benchmark results](https://github.com/dejwk/roo_collections/blob/8834e4e6d103114a82978f5ed136ee14f0bfe518/benchmarks/hashmap/reference_results/esp32/README.md).
+- `SmallString` now stores its length inline. Migrate from `c_str()` to
+  `view()` for access to the length-delimited payload.
 
 - Upgrade the Bazel `roo_testing` dependency from 2.3.0 to 2.5.0.
 - Add emulator test profiles for ESP32-S3 and ESP32-C3 with Arduino and ESP-IDF, plus RP2040 with Pico SDK, Arduino, and Arduino FreeRTOS.

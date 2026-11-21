@@ -1,6 +1,5 @@
 #include <Arduino.h>
-
-#include "roo_collections/immutable_flat_small_hash_map.h"
+#include <roo_collections_immutable_flat_small_hash_map.h>
 
 namespace {
 

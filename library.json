@@ -1,7 +1,7 @@
 {
     "name": "roo_collections",
-    "description": "Memory-conscious collections, supporting flat small hashtables, hash maps, and hash sets.",
-    "keywords": "hashtable hashmap hashset",
+    "description": "Compact flat hash maps and sets for ESP32 and other microcontrollers. Build immutable lookup tables at compile time with C++17.",
+    "keywords": ["esp32", "embedded", "hashmap", "hashset", "hashtable", "constexpr"],
     "authors": [
         {
             "name": "Dawid Kurzyniec",
@@ -13,7 +13,7 @@
         "type": "git",
         "url": "https://github.com/dejwk/roo_collections"
     },
-    "version": "1.4.9",
+    "version": "2.0.0",
     "homepage": "https://github.com/dejwk/roo_collections",
     "frameworks": [
         "Arduino",

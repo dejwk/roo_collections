@@ -5,6 +5,27 @@ Use them for small collections that see frequent key lookups, such as settings,
 command dispatch tables, and MQTT topic indexes. Tested on ESP32 with Arduino
 and ESP-IDF and on Raspberry Pi Pico.
 
+## Install and try it
+
+**Arduino IDE.** Open the Library Manager, search for `roo_collections`, and
+install version 2.0.0. Accept the prompt to install the `roo_backport`
+dependency.
+
+**PlatformIO.** Add this line to your environment in `platformio.ini`.
+PlatformIO also installs `roo_backport`.
+
+```ini
+lib_deps = dejwk/roo_collections @ ^2.0.0
+```
+
+To try the [ImmutableCommands sketch](examples/ImmutableCommands/ImmutableCommands.ino),
+use an ESP32 Arduino build with C++17 or later. In the Arduino IDE, open
+**File > Examples > roo_collections > ImmutableCommands**. In a PlatformIO
+Arduino project, copy the sketch to `src/`. Upload it and open the serial
+monitor at 115200 baud with the line ending set to Newline. Send `start`,
+`stop`, and `reset` one at a time. The sketch prints `1`, `2`, and `3`,
+respectively. An unrecognized command prints `Unknown command`.
+
 ## Why use roo_collections?
 
 **Fast lookups on microcontrollers.** Roo keeps entries in a flat array and

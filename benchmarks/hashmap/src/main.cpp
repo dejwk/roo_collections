@@ -23,6 +23,7 @@
 #include "absl/hash/hash.h"
 #include "benchmark_containers.h"
 #include "benchmark_keys.h"
+#include "benchmark_timing.h"
 
 // Arduino defines F() and EXTERNAL macros that collide with Abseil headers.
 #include <Arduino.h>
@@ -55,23 +56,19 @@ struct Stats {
 };
 template <class Fn>
 Stats measure(uint32_t units_per_batch, Fn fn) {
+  using hashmap_benchmark::TimeBatch;
   uint32_t batches = 1;
-  auto time = [&](uint32_t count) {
-    barrier();
-    uint32_t begin = esp_cpu_get_cycle_count();
-    fn(count);
-    barrier();
-    return uint32_t(esp_cpu_get_cycle_count() - begin);
-  };
+  const auto read_cycles = [] { return esp_cpu_get_cycle_count(); };
   // Warm up and select a batch lasting at least 3ms. No logging in timed code.
-  while (time(batches) < kTargetCycles && batches < 65536) {
+  while (TimeBatch(batches, fn, read_cycles) < kTargetCycles &&
+         batches < 65536) {
     batches *= 2;
     delay(1);
   }
   std::array<double, kSamples> samples;
   for (double& sample : samples) {
     delay(1);
-    uint32_t cycles = time(batches);
+    uint32_t cycles = TimeBatch(batches, fn, read_cycles);
     sample =
         double(cycles) * (1000.0 / 240.0) / (double(batches) * units_per_batch);
   }

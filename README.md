@@ -139,6 +139,8 @@ With C++17 or later, define a `static constexpr` map, set, or record table
 for keys known at build time. The compiler builds the table, and the owner
 has no table-owned heap allocation or runtime initialization. On memory-mapped flash targets such as
 ESP32, the firmware can look up entries directly in flash.
+The [Arduino immutable-map example](examples/ImmutableCommands/ImmutableCommands.ino)
+looks up commands received over the serial port.
 
 Immutable maps support `find()`, `at()`, and a read-only `operator[]`.
 Use `find()` when a key might be absent. Both `at()` and `operator[]` require

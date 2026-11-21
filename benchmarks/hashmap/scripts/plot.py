@@ -19,6 +19,7 @@ os.environ.setdefault("MPLCONFIGDIR", str(PROJECT / ".pio/matplotlib-cache"))
 
 MAPS = ("roo", "absl_flat", "std_unordered", "absl_node", "std_map")
 SMALL_STRING_SERIES = "roo_small_string"
+ROO_SERIES = ("roo", SMALL_STRING_SERIES)
 PLOT_MAPS = ALL_MAPS + (SMALL_STRING_SERIES,)
 KEYS = ("u32_random", "u32_sequential", "u64_random", "string12", "string48")
 KEY_LABELS = ("uint32 · random", "uint32 · sequential", "uint64 · random",
@@ -173,15 +174,25 @@ class Results:
         return text
 
 
+def series_color(index):
+    color = COLORS[index]
+    if PLOT_MAPS[index] in ROO_SERIES:
+        return color
+    # Blend against white once so overlapping marks keep their own colors.
+    opacity = 0.6
+    return tuple(1 - opacity + opacity * int(color[start:start + 2], 16) / 255
+                 for start in (1, 3, 5))
+
+
 def line(ax, results, name, policy, key, work, field="median_ns", factor=0.001):
     i = PLOT_MAPS.index(name)
     x, y = results.series(name, policy, key, work, field, factor)
     if not x:
         return
-    ax.plot(x, y, color=COLORS[i], marker=MARKERS[i], markersize=3.3,
-            linewidth=2.1 if name in ("roo", SMALL_STRING_SERIES) else 1.35,
+    ax.plot(x, y, color=series_color(i), marker=MARKERS[i], markersize=3.3,
+            linewidth=2.1 if name in ROO_SERIES else 1.35,
             linestyle="--" if name == SMALL_STRING_SERIES else "-", label=LABELS[i],
-            zorder=4 if name in ("roo", SMALL_STRING_SERIES) else 2)
+            zorder=4 if name in ROO_SERIES else 2)
 
 
 def size_axis(ax, sizes, cache=False):
@@ -236,7 +247,7 @@ def overview(plt, results, n):
                 i = PLOT_MAPS.index(name)
                 value = results.get(name, "default", key, n, work, field) * factor
                 x = j + (position - (len(names) - 1) / 2) * width
-                ax.bar(x, value, width, color=COLORS[i], label=LABELS[i],
+                ax.bar(x, value, width, color=series_color(i), label=LABELS[i],
                        hatch="//" if name == SMALL_STRING_SERIES else None)
         ax.set_xticks(range(len(results.keys)), results.short_keys, fontsize=9)
         ax.set_ylim(bottom=0)

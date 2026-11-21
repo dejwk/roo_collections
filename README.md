@@ -24,9 +24,9 @@ storage or startup initialization. A shared read-only API lets the same
 lookup code work with built-in tables and mutable maps with matching types
 and policies. [Compile-time map example](#immutable-tables-in-flash)
 
-[General benchmark PDF](benchmarks/hashmap/reference_results/esp32/general/benchmark_charts.pdf) ·
-[SmallString benchmark PDF](benchmarks/hashmap/reference_results/esp32/small_string/benchmark_charts.pdf) ·
-[Results and measurement setup](benchmarks/hashmap/reference_results/esp32/README.md)
+[General benchmark PDF](https://github.com/dejwk/roo_collections/raw/8834e4e6d103114a82978f5ed136ee14f0bfe518/benchmarks/hashmap/reference_results/esp32/general/benchmark_charts.pdf) ·
+[SmallString benchmark PDF](https://github.com/dejwk/roo_collections/raw/8834e4e6d103114a82978f5ed136ee14f0bfe518/benchmarks/hashmap/reference_results/esp32/small_string/benchmark_charts.pdf) ·
+[Results and measurement setup](https://github.com/dejwk/roo_collections/blob/8834e4e6d103114a82978f5ed136ee14f0bfe518/benchmarks/hashmap/reference_results/esp32/README.md)
 
 **Less RAM lost to capacity rounding.** Entries and bucket metadata share
 one backing allocation. Roo chooses from closely spaced bucket counts, so a
@@ -262,7 +262,7 @@ emhash5. The PDFs break down results by key type, table size, and hash
 policy. The rankings above use geometric means of timing ratios across
 all measured sizes. Lookup combines present and absent keys, and build
 timings include destruction. For build and capture instructions, see the
-[benchmark guide](benchmarks/hashmap/README.md).
+[benchmark guide](https://github.com/dejwk/roo_collections/blob/8834e4e6d103114a82978f5ed136ee14f0bfe518/benchmarks/hashmap/README.md).
 
 ## Implementation details
 

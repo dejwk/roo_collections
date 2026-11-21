@@ -10,11 +10,19 @@ and ESP-IDF and on Raspberry Pi Pico.
 **Fast lookups on microcontrollers.** Roo keeps entries in a flat array and
 provides expected constant-time lookup. The default hashes balance speed and
 distribution with lightweight mixing for integer and enum keys and
-content-based hashing for strings. In the general ESP32 benchmark, Roo
-completed successful lookups in about 37% of Abseil flat's time across the
-tested key types and sizes of 16 entries and up. In the SmallString suite,
-where every map used the same inline key types, Roo took about 81% of Boost
-flat's time and about the same time as emhash5 for successful lookups.
+content-based hashing for strings. In our ten-container ESP32 comparison
+with default settings, Roo led both suites in building maps with a size
+hint and ranked first for lookups with inline `SmallString` keys. It was
+about 1% behind the leader for `std::string` lookups and within 7% of the
+fastest map in workloads that mixed string lookups with inserts and erases.
+
+**Compile-time hash maps that can live in flash.** Define a command table,
+pin registry, or set of built-in defaults as `static constexpr` in C++17
+or later. The compiler builds the hash table, and with suitable linker
+placement ESP32 can read it directly from flash. The table needs no heap
+storage or startup initialization. A shared read-only API lets the same
+lookup code work with built-in tables and mutable maps with matching types
+and policies. [Compile-time map example](#immutable-tables-in-flash)
 
 [General benchmark PDF](benchmarks/hashmap/reference_results/esp32/general/benchmark_charts.pdf) ·
 [SmallString benchmark PDF](benchmarks/hashmap/reference_results/esp32/small_string/benchmark_charts.pdf) ·
@@ -29,14 +37,21 @@ same load limit, a power-of-two design needs 256. That gives Roo 41% fewer
 bucket slots in this example, with room for a full key and value in each
 slot.
 
-**Flexible string keys and flash-resident tables.** Look up an owned string
-using a literal, a string view, or an Arduino `String` without allocating a
-temporary key. Use `SmallString` to keep bounded strings inline, or build an
-immutable map at compile time and let the linker place it in flash. Code
-that only reads a map can use the same interface with either a mutable or
-an immutable owner.
+**Flexible string keys.** Look up an owned string using a literal, a string
+view, or an Arduino `String` without allocating a temporary key. Use
+`SmallString` to keep bounded strings inline, with their length available
+for hashing and comparison.
 
 ### Trade-offs
+
+`emhash5` performed well across workloads in the ESP32 benchmark and was
+close to Roo on string lookups. Its lead on integer lookups and repeated
+erase-and-insert operations makes it a strong choice where those costs
+dominate. Roo usually retained less RAM than `emhash5` in the ESP32
+benchmark, especially when both maps were given a size hint. At 128
+presized entries with random 32-bit keys, Roo retained 1,712 bytes and
+`emhash5` retained 3,252 bytes.
+[emhash5 project](https://github.com/ktprime/emhash#version-selection-guide)
 
 As with most open-addressing maps that store entries directly in buckets,
 a full scan visits empty buckets too. Excess capacity after growth or many
@@ -58,16 +73,22 @@ Pass a size hint when you know roughly how many entries the table will hold.
 Mutable containers work with C++11 or later. The library depends on
 `roo_backport`.
 
+Call `MakeDefaultSettings()` once at startup and keep the returned map in
+application state. Pass it to `ReadSetting()` with a key borrowed from a
+request.
+
 ```cpp
 #include "roo_collections/flat_small_hash_map.h"
 
-int ReadTimeout() {
-  roo_collections::FlatSmallStringHashMap<int> settings(16);
-  settings.insert({"timeout", 30});
+using Settings = roo_collections::FlatSmallStringHashMap<int>;
 
-  roo::string_view key = "timeout";
+Settings MakeDefaultSettings() {
+  return {{"timeout_seconds", 30}, {"retries", 3}};
+}
+
+int ReadSetting(const Settings& settings, roo::string_view key, int fallback) {
   auto it = settings.find(key);
-  return it == settings.end() ? 0 : it->second;
+  return it == settings.end() ? fallback : it->second;
 }
 ```
 
@@ -87,15 +108,28 @@ and makes the length available without scanning for a terminator. Choose
 keys with the same retained prefix compare equal. Use `view()` to access the
 length-delimited payload.
 
+Keep `TemperatureReadings readings(8)` in application state and share it with
+the sensor and display code. Each new sample replaces the previous reading
+for that sensor.
+
 ```cpp
 #include "roo_collections/flat_small_hash_map.h"
 #include "roo_collections/small_string.h"
 
-int ReadTemperature() {
-  using SensorId = roo_collections::SmallString<16>;
-  roo_collections::FlatSmallHashMap<SensorId, int> readings(8);
-  readings.insert({SensorId("living-room"), 21});
-  return readings.at(SensorId("living-room"));
+using SensorId = roo_collections::SmallString<16>;
+using TemperatureReadings = roo_collections::FlatSmallHashMap<SensorId, int>;
+
+void RecordTemperature(TemperatureReadings& readings, const SensorId& sensor,
+                       int celsius) {
+  readings[sensor] = celsius;
+}
+
+bool TryReadTemperature(const TemperatureReadings& readings,
+                        const SensorId& sensor, int& celsius) {
+  auto it = readings.find(sensor);
+  if (it == readings.end()) return false;
+  celsius = it->second;
+  return true;
 }
 ```
 
@@ -103,8 +137,7 @@ int ReadTemperature() {
 
 With C++17 or later, define a `static constexpr` map, set, or record table
 for keys known at build time. The compiler builds the table, and the owner
-has no table-owned heap allocation or runtime initialization. Linker
-placement is target-dependent. On memory-mapped flash targets such as
+has no table-owned heap allocation or runtime initialization. On memory-mapped flash targets such as
 ESP32, the firmware can look up entries directly in flash.
 
 Immutable maps support `find()`, `at()`, and a read-only `operator[]`.
@@ -224,7 +257,9 @@ The benchmark measures lookup, iteration, construction and copy, mutation,
 and retained memory on a classic ESP32. It includes Abseil flat and node,
 the standard maps, Tessil robin_map, unordered_dense, ETL, Boost flat, and
 emhash5. The PDFs break down results by key type, table size, and hash
-policy. For build and capture instructions, see the
+policy. The rankings above use geometric means of timing ratios across
+all measured sizes. Lookup combines present and absent keys, and build
+timings include destruction. For build and capture instructions, see the
 [benchmark guide](benchmarks/hashmap/README.md).
 
 ## Implementation details

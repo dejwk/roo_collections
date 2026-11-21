@@ -1,7 +1,14 @@
 {
     "name": "roo_collections",
     "description": "Compact flat hash maps and sets for ESP32 and other microcontrollers. Build immutable lookup tables at compile time with C++17.",
-    "keywords": ["esp32", "embedded", "hashmap", "hashset", "hashtable", "constexpr"],
+    "keywords": [
+        "esp32",
+        "embedded",
+        "hashmap",
+        "hashset",
+        "hashtable",
+        "constexpr"
+    ],
     "authors": [
         {
             "name": "Dawid Kurzyniec",

@@ -151,12 +151,14 @@ cc_test(
     ],
 )
 
+# The pre-C++17 tests intentionally include the immutable headers.
 cc_test(
     name = "cpp11_compatibility_test",
     size = "small",
     srcs = ["test/language_version_compile_test.cpp"],
     copts = [
         "-std=c++11",
+        "-Wno-cpp",
         "-DROO_COLLECTIONS_TEST_CXX=201103L",
     ],
     deps = [":roo_collections"],
@@ -168,6 +170,7 @@ cc_test(
     srcs = ["test/language_version_compile_test.cpp"],
     copts = [
         "-std=c++14",
+        "-Wno-cpp",
         "-DROO_COLLECTIONS_TEST_CXX=201402L",
     ],
     deps = [":roo_collections"],
@@ -208,6 +211,8 @@ cc_test(
     name = "flat_small_hashtable_churn_test",
     size = "small",
     srcs = ["test/flat_small_hashtable_churn_test.cpp"],
+    # The alignment test intentionally passes a 64-byte-aligned entry by value.
+    copts = ["-Wno-psabi"],
     deps = [
         ":roo_collections",
         "@googletest//:gtest_main",

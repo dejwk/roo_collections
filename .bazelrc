@@ -1,5 +1,8 @@
 common --registry="https://raw.githubusercontent.com/dejwk/roo-registry/main/" --registry="https://bcr.bazel.build"
 
+# Hide glog's compile-time note about unavailable stack symbolization.
+build --output_filter="^(?!@@?glog[+]?//)"
+
 # AddressSanitizer: append --config=asan to bazel build, test, or run.
 import %workspace%/.roo_testing/bazelrc/common/asan.bazelrc
 import %workspace%/.roo_testing/bazelrc/esp32/base.bazelrc

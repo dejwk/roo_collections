@@ -204,7 +204,8 @@ TEST(FlatSmallHashtableChurn, EntryAlignmentAfterCopyAndGrowth) {
     for (uint32_t key = 0; key < 80; ++key) {
       const auto& value = map->at(key);
       EXPECT_EQ(value.value, key + 1);
-      EXPECT_EQ(reinterpret_cast<uintptr_t>(&value) % alignof(AlignedValue), 0);
+      EXPECT_EQ(reinterpret_cast<uintptr_t>(&value) % alignof(AlignedValue),
+                0u);
     }
   }
 }

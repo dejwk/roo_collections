@@ -1,15 +1,11 @@
 # roo_collections 2.0.0
 
-- Add C++17 compile-time hash maps, sets, and record tables, with a shared
-  read-only API for compatible mutable and immutable containers.
-- Improve mutable map lookup, construction, and retained memory. See the
-  [ESP32 benchmark results](https://github.com/dejwk/roo_collections/blob/8834e4e6d103114a82978f5ed136ee14f0bfe518/benchmarks/hashmap/reference_results/esp32/README.md).
-- `SmallString` now stores its length inline. Migrate from `c_str()` to
-  `view()` for access to the length-delimited payload.
-
-- Upgrade the Bazel `roo_testing` dependency from 2.3.0 to 2.5.0.
-- Add emulator test profiles for ESP32-S3 and ESP32-C3 with Arduino and ESP-IDF, plus RP2040 with Pico SDK, Arduino, and Arduino FreeRTOS.
-- Expand `test_all_profiles` to run all nine supported profiles sequentially, and update the Bazel launcher to recognize Pico profiles.
+- Add C++17 compile-time immutable hash maps, sets, and record tables, with a shared read-only API for compatible mutable and immutable containers. Mutable containers support C++11 and later. Try the new Arduino `ImmutableCommands` example.
+- Speed up mutable hash table lookup, iteration, construction, and copying. Reduce retained RAM with a single backing allocation, tighter capacity sizing, and reuse of erased buckets. [ESP32 benchmark results](https://github.com/dejwk/roo_collections/blob/8834e4e6d103114a82978f5ed136ee14f0bfe518/benchmarks/hashmap/reference_results/esp32/README.md)
+- Update default hashing for integer and enum keys, which can change iteration order. Hash Arduino `String` keys and lookup queries without copying them.
+- **Breaking change:** `SmallString<N>` stores its length inline and preserves embedded zero bytes. Replace `c_str()` with `view()` to access the length-delimited payload. `N` is now limited to 256 bytes, including the length byte.
+- Upgrade the Bazel `roo_testing` dependency from 2.3.0 to 2.5.0 and update the shared CI workflow to 2.5.0.
+- Add emulator profiles for ESP32-S3 and ESP32-C3 with Arduino and ESP-IDF, and for RP2040 with Pico SDK, Arduino, and Arduino FreeRTOS. `test_all_profiles` runs all nine embedded profiles sequentially, the Bazel launcher recognizes Pico profiles, and CI runs the embedded matrix alongside host tests.
 
 ---
 

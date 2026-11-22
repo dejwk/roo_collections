@@ -1,3 +1,11 @@
+# roo_collections 2.0.2
+
+- Fix Arduino IDE discovery of the `roo_backport` dependency when it’s referenced through nested headers.
+- Use `roo::countr_zero` for flat hash table iteration and retain test coverage for the portable fallback. Upgrade Bazel to `roo_backport` 1.3.0 and raise the PlatformIO minimum to 1.3.0.
+- Upgrade the Bazel `roo_testing` dependency and shared CI workflow from 2.6.0 to 2.7.0.
+
+---
+
 # roo_collections 2.0.1
 
 - Upgrade the Bazel `roo_testing` dependency and shared CI workflow from 2.5.0 to 2.6.0. Update CI to use the `arduino_esp32` and `idf_esp32` profile names.

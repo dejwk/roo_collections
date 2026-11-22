@@ -1,3 +1,11 @@
+# roo_collections 2.0.1
+
+- Upgrade the Bazel `roo_testing` dependency and shared CI workflow from 2.5.0 to 2.6.0. Update CI to use the `arduino_esp32` and `idf_esp32` profile names.
+- Upgrade the Bazel `roo_backport` dependency to 1.2.5 and raise the PlatformIO minimum to 1.2.5.
+- Update benchmark CI to `actions/checkout` 7.0.1 and `actions/setup-python` 7.1.0, pinning both actions to commit SHAs.
+
+---
+
 # roo_collections 2.0.0
 
 - Add C++17 compile-time immutable hash maps, sets, and record tables, with a shared read-only API for compatible mutable and immutable containers. Mutable containers support C++11 and later. Try the new Arduino `ImmutableCommands` example.

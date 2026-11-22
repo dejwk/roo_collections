@@ -234,7 +234,7 @@ cc_test(
     name = "flat_small_hashtable_iterator_fallback_test",
     size = "small",
     srcs = ["test/flat_small_hashtable_iterator_test.cpp"],
-    copts = ["-DROO_COLLECTIONS_HAS_BUILTIN_CTZ=0"],
+    local_defines = ["ROO_BACKPORT_HAS_BUILTIN_CTZ=0"],
     deps = [
         ":roo_collections",
         "@googletest//:gtest_main",

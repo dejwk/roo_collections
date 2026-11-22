@@ -31,7 +31,7 @@
         "srcFilter": "+<*> -<examples> -<test>"
     },
     "dependencies": {
-        "dejwk/roo_backport": ">=1.2.5"
+        "dejwk/roo_backport": ">=1.3.0"
     },
     "export": {
         "include": [

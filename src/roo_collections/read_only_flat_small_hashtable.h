@@ -4,6 +4,7 @@
 /// @brief Common live read-only interface for heap and inline flat tables.
 /// @ingroup roo_collections
 
+#include "roo_backport/bit.h"
 #include "roo_collections/impl/flat_small_hashtable_common.h"
 #include "roo_collections/impl/flat_small_hashtable_lookup.h"
 #include "roo_collections/impl/read_only_map_access.h"
@@ -195,19 +196,7 @@ class ReadOnlyFlatSmallHashtable
     if (pos < 8) {
       uint8_t mask =
           static_cast<uint8_t>(dummy_empty_state_) & (uint32_t{0xFF} << pos);
-      if (mask != 0) {
-#if ROO_COLLECTIONS_HAS_BUILTIN_CTZ
-        return __builtin_ctz(static_cast<unsigned>(mask));
-#else
-        // At most seven shifts; also valid during constant evaluation.
-        uint16_t first = 0;
-        while ((mask & 1u) == 0) {
-          mask >>= 1;
-          ++first;
-        }
-        return first;
-#endif
-      }
+      if (mask != 0) return roo::countr_zero(mask);
       pos = 8;
     }
     uint16_t cap = ht_len();

@@ -4,6 +4,7 @@
 /// @brief Common live read-only interface for heap and inline flat tables.
 /// @ingroup roo_collections
 
+#include "roo_backport.h"
 #include "roo_backport/bit.h"
 #include "roo_collections/impl/flat_small_hashtable_common.h"
 #include "roo_collections/impl/flat_small_hashtable_lookup.h"
